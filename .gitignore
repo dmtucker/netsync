@@ -1,9 +1,7 @@
-etc/
-bin/*
 tmp/*
 var/log/*
 
-# Mac OS X files
+# OS X files
 *.DS_STORE
 *.xcworkspace
 
@@ -21,6 +19,11 @@ var/log/*
 *.dylib
 
 # Executables
+bin/
 *.exe
 *.out
 *.app
+
+# Configurations
+etc/
+*.ini
