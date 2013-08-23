@@ -1,0 +1,27 @@
+every once in a while (esp. around large network changes or new hardware), check the node log for entries that say no devices found. these are devices that are active, but do not have any of the oids that netsync checks. this is a simple fix in most cases.
+
+
+
+To remove all extraneous entries in the database, import Probe2Cache (var/db.csv) into the database after running netsync -p2 with either -D (for DNS) or an RFC1035-compliant list of the nodes you wish to include.
+
+netsync should be run at the following times:
+
+-after adding a node to dns
+-after attaching a new node to the network
+-after adding a new device to an existing stack (or creating a stack by adding a second device)
+
+
+
+glossary:
+
+device : a serial number associated with a piece of network hardware
+active device   : a device found in the database and on the network
+inactive device : a device found in the database but not on the network (what if network subset was synced????)
+ 
+node : a network host that posseses an ip address
+active node   : a reachable node
+inactive node : an unreachable node
+
+row   : a database entry
+field : a database column name
+value : a database cell

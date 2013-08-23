@@ -1,0 +1,120 @@
+NAME
+    netsync - network/database utility
+
+SYNOPSIS
+    netsync [-pDdchqvV] [nodes]
+
+DESCRIPTION
+    Execution begins with the parsing of the configuration file (-c).
+    netsync inventories all active network devices listed in [file] or DNS (-D).
+    It uses gathered information to identify each device in a provided database.
+    Identified devices are then synchronized unless probing is used (see below).
+    
+    The following options are available:
+    
+    -h         Help. Print usage and options.
+    
+    -q         Quiet. Print nothing.
+    
+    -v         Verbose. Print everything.
+    
+    -V         Version. Print build information.
+    
+    -c .ini    Specify a configuration file to use. (default: etc/netsync.ini)
+    
+    -p #       Probe. There are 2 probe levels:
+                   1: Probe the network for active nodes.
+                   2: Probe the database for those nodes.
+    
+    -D         Use DNS to retrieve a node listing.
+    
+    -d .csv    Specify an RFC4180-compliant database file to use.
+    
+    The following parameters are accepted:
+    
+    nodes      Specify an RFC1035-compliant network node list to use.
+
+PROBING
+    If the probe option is used, netsync will not complete execution entirely,
+    and neither the devices nor the database will be modified.
+    Instead, resources are created to aid in future runs of netsync.
+    Probe functionality is broken into levels that correspond to netsync stages.
+    Each level includes all levels before it (i.e. level 2 does level 1 too).
+    A detailed description of each level follows.
+    
+    Probe Level 1:
+        netsync executes the discovery stage only.
+        It probes the network for active nodes (logging them appropriately),
+        and it creates an RFC1035-compliant list of them (default: var/dns.txt).
+        This list may then be used as input to netsync to skip inactive nodes.
+    
+    Probe Level 2:
+        netsync executes the discovery and identification stages only.
+        It probes the database for discovered nodes (logging them appropriately),
+        and it creates an RFC4180-compliant list of them (default: var/db.csv).
+        This list may then be used as input to netsync to skip synchronization later.
+
+EXAMPLES
+    $ netsync.sh -D
+    > configuring (using etc/netsync.ini)...
+    > discovering (using DNS)...  785 nodes (44 inactive), 803 devices (12 stacks)
+    > identifying (using Oracle)...  744 recognized
+
+    - OR -
+
+    $ dig axfr ucsc.edu | egrep ^sw7 | netsync.sh
+    > configuring (using etc/netsync.ini)...
+    > discovering (using STDIN)...  376 nodes (14 inactive), 394 devices (12 stacks)
+    > identifying (using Oracle)...  345 recognized
+
+    - OR -
+
+    $ netsync.sh -Dp1
+    > configuring (using etc/netsync.ini)...
+    > discovering (using DNS)...  785 nodes (44 inactive), 803 devices (12 stacks)
+    
+    $ netsync.sh var/dns.txt
+    > configuring (using etc/netsync.ini)...
+    > discovering (using DNS)...  785 nodes, 803 devices (12 stacks)
+    > identifying (using Oracle)...  744 recognized
+
+    - OR -
+
+    $ netsync.sh -Dp2
+    > configuring (using etc/netsync.ini)...
+    > discovering (using DNS)...  785 nodes (44 inactive), 803 devices (12 stacks)
+    > identifying (using Oracle)...  744 recognized
+    
+    $ netsync.sh -d var/db.csv var/dns.txt
+    > configuring (using etc/netsync.ini)...
+    > discovering (using DNS)...  785 nodes, 803 devices (12 stacks)
+    > identifying (using Oracle)...  744 recognized
+
+DEPENDENCIES
+    Perl Modules:
+        Config::Simple
+        DBI
+        File::Basename
+        Getopt::Std
+        Net::DNS
+        POSIX
+        Regexp::Common
+        Scalar::Util
+        SNMP
+        SNMP::Info
+        Text::CSV
+
+BUGS
+    none
+
+AUTHOR
+    David Tucker
+
+COPYRIGHT
+    This file is part of netsync.
+    
+    netsync is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+    
+    netsync is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+    
+    You should have received a copy of the GNU General Public License along with netsync. If not, see <http://www.gnu.org/licenses/>.
