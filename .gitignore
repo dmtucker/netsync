@@ -1,3 +1,4 @@
+etc/
 bin/*
 tmp/*
 var/log/*
