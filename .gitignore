@@ -1,8 +1,14 @@
-tmp/*
-var/log/*
+tmp/
+var/log/
 
 # OS X files
-*.DS_STORE
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
 *.xcworkspace
 
 # Object files
@@ -25,5 +31,5 @@ bin/
 *.app
 
 # Configurations
-etc/
-*.ini
+# etc/
+# *.ini
