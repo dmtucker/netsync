@@ -1,5 +1,5 @@
 tmp/
-var/log/
+var/
 
 # OS X files
 .DS_Store

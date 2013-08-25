@@ -6,6 +6,9 @@ require Exporter;
 @ISA = (Exporter);
 @EXPORT = ('configure','dump_config','get_config','DB','DNS','SNMP','SNMP_Info');
 
+use autodie;
+use strict;
+
 use feature 'say';
 
 use Config::Simple;
@@ -28,8 +31,6 @@ sub configure {
     $DB       //= 0; #/#XXX
     $DNS      //= 0; #/#XXX
     $SNMP     //= 0; #/#XXX
-    
-    say 'configuring (using '.$file.')...' unless $quiet;
     
     open (my $ini,'<',$file);
     my $parser = Config::Simple->new($file);

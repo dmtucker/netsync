@@ -38,12 +38,12 @@ BEGIN {
     
     #SNMP::initMib(); #XXX
     SNMP::loadModules('ENTITY-MIB');            # standard
-    #SNMP::loadModules('FOUNDRY-SN-SWITCH-GROUP-MIB'); # Brocade
-    SNMP::loadModules('FOUNDRY-SN-AGENT-MIB');  # Brocade
+    SNMP::loadModules('FOUNDRY-SN-SWITCH-GROUP-MIB'); # Brocade #XXX : needed?, why?
+    #SNMP::loadModules('FOUNDRY-SN-AGENT-MIB');  # Brocade
     SNMP::loadModules('CISCO-STACK-MIB');       # Cisco
-    #SNMP::loadModules('SEMI-MIB');             # HP
-    SNMP::loadModules('HP-httpManageable-MIB'); # HP
-    SNMP::loadModules('HP-SN-AGENT-MIB');       # HP
+    SNMP::loadModules('SEMI-MIB');             # HP #XXX : needed?, why?
+    #SNMP::loadModules('HP-httpManageable-MIB'); # HP #XXX
+    #SNMP::loadModules('HP-SN-AGENT-MIB');       # HP #XXX : needed?
 }
 
 
@@ -153,143 +153,151 @@ sub SNMP_get1 {
     foreach my $oid (@$oids) {
         my $query = SNMP::Varbind->new([$oid->[0]]);
         while (my $object = $session->getnext($query)) {
-            break unless $query->tag eq $oid->[1] and not $session->{'ErrorNum'};
-            next  unless $object =~ /^(?!ENDOFMIBVIEW).+$/;
+            last unless $query->tag eq $oid->[1] and not $session->{'ErrorNum'};
+            last if $object =~ /^ENDOFMIBVIEW$/;
             $object =~ s/^\s*(.*?)\s*$/$1/;
-            push (@IIds,$query->iid);
+            push (@IIDs,$query->iid);
             push (@objects,$object);
         }
         last if @objects != 0;
     }
+    return undef if @objects == 0;
     return (\@objects,\@IIDs);
 }
 
 
 
 
-sub extract_serials { #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX
-    warn 'too many arguments' if @_ > 1;
-    my ($session) = @_;
-    
-    my $oids = [
-        ['.1.3.6.1.2.1.47.1.1.1.1.11' => 'entPhysicalSerialNum'], # standard (ENTITY-MIB)
-        
-        ['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum'], # Brocade (FOUNDRY-SN-AGENT-MIB?)
-        ['.1.3.6.1.4.1.1991.1.1.1.1.2'     => 'snChasSerNum'],     # Brocade (FOUNDRY-SN-AGENT-MIB) - stackless
-        
-        ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # Cisco (CISCO-STACK-MIB)
-        ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # Cisco (CISCO-STACK-MIB)
-        
-        ['.1.3.6.1.4.1.11.2.36.1.1.2.9'        => 'hpHttpMgSerialNumber'], # HP (HP-httpManageable-MIB)
-        #['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2'     => 'snChasUnitSerNum'],     # HP (HP-SN-AGENT-MIB?)
-        ['.1.3.6.1.4.1.11.2.3.7.11.12.1.1.1.2' => 'snChasSerNum'],         # HP (HP-SN-AGENT-MIB) - stackless?
-    ];
-    
-    my ($serials,$IIDs) = SNMP_get1 ($oids,$session);
-    return @$serials;
-} #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX #XXX
-
-
-
-
-sub map_interfaces {
+sub device_interfaces {
     warn 'too few arguments'  if @_ < 2;
     warn 'too many arguments' if @_ > 2;
     my ($vendor,$session) = @_;
     
-    my %ifDescr2serial;
-    given ($vendor) {
-        my %if2ifDescr;
-        my ($ifDescrs,$ifs) = SNMP_get1 ([['.1.3.6.1.2.1.2.2.1.2' => 'ifDescr']],$session);
-        @if2ifDescr{@$ifs} = @$ifDescrs;
-        when ('cisco') {
-            my %if2serial;
-            {
-                my (,$port2if) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.11' => 'portIfIndex']],$session);
-                my @port2serial;
-                {
-                    my (,$port2module) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.1'  => 'portModuleIndex']],$session);
-                    my %module2serial;
-                    {
-                        my ($modules,$serials) = SNMP_get1 ([
-                            ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # Cisco
-                            ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # Cisco
-                        ],$session);
-                        @module2serial{@$modules} = @$serials;
-                    }
-                    push (@port2serial,$module2serial{$_}) foreach @$port2module;
-                }
-                @if2serial{@$port2if} = @port2serial;
-            }
-            $ifDescr2serial{$if2ifDescr{$_}} = $if2serial{$_} foreach @ifs;
-        }
-        when ('foundry') {
-            my %if2serial;
-            {
-                my (,$port2if) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.38' => 'snSwPortIfIndex']],$session);
-                my @port2serial;
-                {
-                    my (,$port2umi) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.39' => 'snSwPortDescr']],$session);
-                    my %module2serial;
-                    {
-                        my ($modules,$serials) = SNMP_get1 ([
-                            ['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum'], # Brocade (FOUNDRY-SN-AGENT-MIB?)
-                            ['.1.3.6.1.4.1.1991.1.1.1.1.2'     => 'snChasSerNum'],     # Brocade (FOUNDRY-SN-AGENT-MIB) - stackless
-                        ],$session);
-                        @module2serial{@$modules} = @$serials;
-                    }
-                    foreach (@$port2umi) {
-                        push (@port2serial,$module2serial{$+{'unit'}}) if m{^(?<unit>[0-9]+)/[0-9]+/[0-9]+$};
-                    }
-                }
-                @if2serial{@$port2if} = @port2serial;
-            }
-        }
-        when ('hp') {
-            my %module2serial;
-            {
-                my ($modules,$serials) = SNMP_get1 ([
-                    ['.1.3.6.1.4.1.11.2.36.1.1.2.9'        => 'hpHttpMgSerialNumber'], # HP (HP-httpManageable-MIB)
-                    #['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2'     => 'snChasUnitSerNum'],     # HP (HP-SN-AGENT-MIB?)
-                    ['.1.3.6.1.4.1.11.2.3.7.11.12.1.1.1.2' => 'snChasSerNum'],         # HP (HP-SN-AGENT-MIB) - stackless?
-                    ['.1.3.6.1.4.1.11.2.36.1.1.5.1.1.10' => 'hpHttpMgDeviceSerialNumber'], # HP
-                ],$session);
-                @module2serial{@$modules} = @$serials;
-            }
-        }
-        default {
-            warn 'unmatched vendor for interface mapping';
-            my %module2serial;
-            {
-                my ($modules,$serials) = SNMP_get1 ([['.1.3.6.1.2.1.47.1.1.1.1.11' => 'entPhysicalSerialNum']],$session);
-                @module2serial{@$modules} = @$serials;
-            }
-        }
-    }
     my %serial2ifDescr;
-    foreach my $ifDescr (keys %ifDescr2serial) {
-        $serial2ifDescr{$ifDescr2serial{$ifDescr}} //= []; #/#XXX
-        push (@{$serial2ifDescr{$ifDescr2serial{$ifDescr}}},$ifDescr);
+    {
+        my %if2ifDescr;
+        {
+            my ($types) = SNMP_get1 ([['.1.3.6.1.2.1.2.2.1.3'  => 'ifType']],$session); # IF-MIB
+            my ($ifDescrs,$ifs) = SNMP_get1 ([
+                ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],  # IF-MIB
+                ['.1.3.6.1.2.1.2.2.1.2'    => 'ifDescr'], # IF-MIB
+            ],$session); # IF-MIB
+            foreach my $i (keys @$ifs) {
+                $if2ifDescr{$ifs->[$i]} = $ifDescrs->[$i] if $types->[$i] =~ /^(?!1|24|53)$/;
+                note (get_config 'general.Log','foreign type encountered ('.$types->[$i].') on interface '.$ifDescrs->[$i]) if $types->[$i] =~ /^(?!1|6|24|53)$/; #XXX
+            }
+            @if2ifDescr{@$ifs} = @$ifDescrs;
+        }
+        
+        my @serials;
+        {
+            my ($classes) = SNMP_get1 ([['.1.3.6.1.2.1.47.1.1.1.1.5'  => 'entPhysicalClass']],$session);     # ENTITY-MIB
+            my ($serials) = SNMP_get1 ([['.1.3.6.1.2.1.47.1.1.1.1.11' => 'entPhysicalSerialNum']],$session); # ENTITY-MIB
+            if (defined $serials) {
+                foreach my $i (keys @$classes) {
+                    push (@serials,$serials->[$i]) if $classes->[$i] =~ /3/; #XXX and defined $serials->[$i];
+                }
+            }
+        }
+        unless (@serials > 0) {
+            given ($vendor) {
+                when ('cisco') {
+                    my ($serials) = SNMP_get1 ([
+                        ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # CISCO-STACK-MIB
+                        ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # CISCO-STACK-MIB
+                    ],$session);
+                    @serials = @$serials;
+                }
+                when ('foundry') {
+                    my ($serials) = SNMP_get1 ([
+                        ['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum'], # FOUNDRY-SN-AGENT-MIB?
+                        ['.1.3.6.1.4.1.1991.1.1.1.1.2'     => 'snChasSerNum'],     # FOUNDRY-SN-AGENT-MIB? - stackless
+                    ],$session);
+                    @serials = @$serials;
+                }
+                when ('hp') {
+                    my ($serials) = SNMP_get1 ([
+                        ['.1.3.6.1.4.1.11.2.36.1.1.5.1.1.10' => 'hpHttpMgDeviceSerialNumber'], # ?
+                        ['.1.3.6.1.4.1.11.2.36.1.1.2.9'      => 'hpHttpMgSerialNumber'],       # HP-httpManageable-MIB
+                        #['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2'     => 'snChasUnitSerNum'],           # HP-SN-AGENT-MIB?
+                        #['.1.3.6.1.4.1.11.2.3.7.11.12.1.1.1.2' => 'snChasSerNum'],               # HP-SN-AGENT-MIB - stackless?
+                    ],$session);
+                    @serials = @$serials;
+                }
+                default {
+                    alert 'Serial retrieval attempted on an unsupported device vendor ('.$vendor.')';
+                }
+            }
+            if (@serials == 0) {
+                alert 'No serials could be found for a '.$vendor.' device.';
+                return undef;
+            }
+        }
+        
+        if (@serials == 1) {
+            push (@{$serial2ifDescr{$serials[0]}},$_) foreach values %if2ifDescr;
+        }
+        else {
+            my %ifDescr2serial;
+            given ($vendor) {
+                when ('cisco') {
+                    my %if2serial;
+                    {
+                        my ($port2if) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.11' => 'portIfIndex']],$session);
+                        my @port2serial;
+                        {
+                            my ($port2module) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.1'  => 'portModuleIndex']],$session);
+                            my %module2serial;
+                            {
+                                my ($serials,$modules) = SNMP_get1 ([
+                                    ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # CISCO-STACK-MIB
+                                    ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # CISCO-STACK-MIB
+                                ],$session);
+                                @module2serial{@$modules} = @$serials;
+                            }
+                            push (@port2serial,$module2serial{$_}) foreach @$port2module;
+                        }
+                        @if2serial{@$port2if} = @port2serial;
+                    }
+                    $ifDescr2serial{$if2ifDescr{$_}} = $if2serial{$_} foreach keys %if2ifDescr;
+                }
+                when ('foundry') {
+                    my %if2serial;
+                    {
+                        my ($port2if) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.38' => 'snSwPortIfIndex']],$session);
+                        my @port2serial;
+                        {
+                            my ($port2umi) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.39' => 'snSwPortDescr']],$session);
+                            my %module2serial;
+                            {
+                                my ($serials,$modules) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum']],$session); # FOUNDRY-SN-AGENT-MIB?
+                                @module2serial{@$modules} = @$serials;
+                            }
+                            foreach (@$port2umi) {
+                                push (@port2serial,$module2serial{$+{'unit'}}) if m{^(?<unit>[0-9]+)(/[0-9]+)+$};
+                            }
+                        }
+                        @if2serial{@$port2if} = @port2serial;
+                    }
+                    $ifDescr2serial{$if2ifDescr{$_}} = $if2serial{$_} foreach keys %if2ifDescr;
+                }
+                default {
+                    alert 'Interface mapping attempted on an unsupported device vendor ('.$vendor.')';
+                }
+            }
+            foreach my $ifDescr (keys %ifDescr2serial) {
+                
+                # Remove Vlan, Null0, and loopback interfaces
+                unless (defined $ifDescr2serial{$ifDescr}) {
+                    delete $ifDescr2serial{$ifDescr};
+                    next;
+                }
+                
+                push (@{$serial2ifDescr{$ifDescr2serial{$ifDescr}}},$ifDescr);
+            }
+        }
     }
-    return (\%ifDescr2serial,\%serial2ifDescr);
-}
-
-
-
-
-sub initialize_interfaces {
-    warn 'too few arguments'  if @_ < 2;
-    warn 'too many arguments' if @_ > 2;
-    my ($device,$ifDescrs) = @_;
-    
-    foreach my $ifDescr (@$ifDescrs) {
-        $device->{'interfaces'}{$ifDescr}{'ifDescr'} = $ifDescr;
-        my $interface = $device->{'interfaces'}{$ifDescr};
-        $interface->{'device'}     = $device;
-        $interface->{'recognized'} = 0;
-    }
-    
-    return $device;
+    return \%serial2ifDescr;
 }
 
 
@@ -304,15 +312,14 @@ sub dump_node {
             say $node->{'ip'}.' ('.$node->{'hostname'}.')';
         }
         else {
-            warn 'locationless node';
+            alert 'A locationless node has been detected.';
         }
         
+        my $device_count;
         if (defined $node->{'devices'}) {
-            my $device_count = scalar keys %{$node->{'devices'}};
-            my $recognized_device_count    = 0;
-            my $interface_count            = 0;
-            my $recognized_interface_count = 0;
-            foreach my $serial (keys %{$node->{'devices'}} {
+            $device_count = scalar keys %{$node->{'devices'}};
+            my ($recognized_device_count,$interface_count,$recognized_interface_count) = (0,0,0);
+            foreach my $serial (keys %{$node->{'devices'}}) {
                 my $device = $node->{'devices'}{$serial};
                 ++$recognized_device_count if $device->{'recognized'};
                 if (defined $device->{'interfaces'}) {
@@ -323,7 +330,7 @@ sub dump_node {
                     }
                 }
                 else {
-                    warn 'interfaceless device';
+                    alert 'An interfaceless device ('.$serial.') has been detected on '.$node->{'hostname'}.'.';
                 }
             }
             print ((' 'x$settings{'Indent'}).$device_count.' device');
@@ -334,13 +341,11 @@ sub dump_node {
             say ' ('.$recognized_interface_count.' recognized)';
         }
         else {
-            warn 'deviceless node';
+            alert 'A deviceless node ('.$node->{'hostname'}.') has been detected.';
         }
         
-        my $info = $node->{'info'} if defined $node->{'info'} and
-                                      blessed $node->{'info'} and
-                                      $node->{'info'}->isa('SNMP::Info');
-        if (defined $info) {
+        if (defined $node->{'info'}) { # and blessed $node->{'info'} and $node->{'info'}->isa('SNMP::Info') { #XXX
+            my $info = $node->{'info'};
             if ($device_count == 1) {
                 #say ((' 'x$settings{'Indent'}).$info->class); #XXX
                 say ((' 'x$settings{'Indent'}).$info->vendor.' '.$info->model);
@@ -348,12 +353,12 @@ sub dump_node {
             }
             
             my $interface_count = scalar keys %{$info->interfaces};
-            print ((' 'x$settings{'Indent'}).$interfaces.' interface');
-            print 's' if scalar $interfaces > 1;
+            print ((' 'x$settings{'Indent'}).$interface_count.' interface');
+            print 's' if scalar $interface_count > 1;
             print "\n";
         }
         else {
-            warn 'informationless node';
+            alert 'An informationless node ('.$node->{'hostname'}.') has been detected.';
         }
     }
     say scalar (@nodes).' nodes' if @nodes > 1;
@@ -382,7 +387,7 @@ sub probe {
             next;
         }
         
-        my (,$serial2ifDescr) = map_interfaces ($info->vendor,$session);
+        my $serial2ifDescr = device_interfaces ($info->vendor,$session);
         my @serials = keys %$serial2ifDescr;
         note ($settings{'NodeLog'},$note.': no devices detected ('.$info->vendor.')') and next if @serials == 0;
         note ($settings{'StackLog'},$note.': '.join (' ',@serials)) if @serials > 1;
@@ -391,7 +396,12 @@ sub probe {
             my $device = $node->{'devices'}{$serial};
             $device->{'node'}       = $node;
             $device->{'recognized'} = 0;
-            initialize_interfaces ($device,$serial2ifDescr{$serial})
+            foreach my $ifDescr (@{$serial2ifDescr->{$serial}}) {
+                $device->{'interfaces'}{$ifDescr}{'ifDescr'} = $ifDescr;
+                my $interface = $device->{'interfaces'}{$ifDescr};
+                $interface->{'device'}     = $device;
+                $interface->{'recognized'} = 0;
+            }
         }
         
         dump_node $node if $options{'verbose'};
@@ -444,7 +454,7 @@ sub discover {
             $node->{'hostname'} = $+{'host'};
             
             my $serial_count = probe $node;
-            if ($serial_count <= 0) {
+            if ($serial_count < 1) {
                 ++$inactive_node_count;
                 delete $nodes->{$+{'ip'}};
             }
@@ -465,7 +475,7 @@ sub discover {
     unless ($options{'quiet'}) {
         print scalar keys %$nodes if $options{'verbose'};
         print ' nodes';
-        print ' ('.$inactive_node_count.' inactive)' if $inactive_count > 0;
+        print ' ('.$inactive_node_count.' inactive)' if $inactive_node_count > 0;
         print ', '.$active_device_count.' devices';
         print ' ('.$stack_count.' stacks)' if $stack_count > 0;
         print "\n";
@@ -548,8 +558,7 @@ sub choose {
     my ($a,$b,$msg) = @_;
     $msg //= 'A conflict has been discovered.'; #/#XXX
     
-    #open (STDIN,'<',POSIX::ctermid) if $options{'node_list'} eq '-'; #XXX
-    
+    open (STDIN,'<',POSIX::ctermid) if $options{'node_list'} eq '-'; #XXX
     while (1) {
         print "\n" unless $options{'verbose'};
         say $msg;
@@ -557,9 +566,9 @@ sub choose {
         say ((' 'x$settings{'Indent'}).'[A]: '.$a);
         say ((' 'x$settings{'Indent'}).' B : '.$b);
         print "Choice: ";
-        chomp (my $input = <>);
-        return $a if $input =~ /^[aA1]?$/;
-        return $b if $input =~ /^[bB2]$/;
+        chomp (my $input = <STDIN>);
+        return $a if $input =~ /^([aA1]+)?$/;
+        return $b if $input =~ /^[bB2]+$/;
         say 'A decision could not be determined from your response. Try again.';
     }
 }
@@ -575,10 +584,9 @@ sub ask {
     open (STDIN,'<',POSIX::ctermid) if $options{'node_list'} eq '-';
     while (1) {
         print $question.' [y/n] ';
-        #chomp (my $response = <STDIN>);
-        chomp (my $response = <>);
-        return 1 if $response =~ /^([yY]([eE][sS])?)$/;
-        return 0 if $response =~ /^([nN][oO]?)$/;
+        chomp (my $response = <STDIN>);
+        return 1 if $response =~ /^([yY]+([eE]+[sS]+)?)$/;
+        return 0 if $response =~ /^([nN]+([oO]+)?)$/;
         say 'A decision could not be determined from your response. Try again.';
     }
 }
@@ -591,59 +599,63 @@ sub resolve_conflicts {
     warn 'too many arguments' if @_ > 1;
     my ($nodes) = @_;
     
-    my $resolve_conflicts = 0;
-    if ($resolve_conflicts) {
-        foreach my $ip (keys %$nodes) {
-            my $node = $nodes->{$ip};
-            foreach my $serial (keys %{$node->{'devices'}}) {
-                my $device = $node->{'devices'}{$serial};
-                if ($device->{'recognized'}) {
-                    foreach my $conflict (keys %{$device->{'conflicts'}}) {
-                        while (my $row = shift @{$device->{'conflicts'}{$conflict}}) {
-                            my $ifDescr   = $row->{$settings{'InterfaceField'}};
-                            given ($conflict) {
-                                my $suffix = $serial.' at '.$ip.'('.$node->{'hostname'}.').';
-                                when ('unrecognized') {
-                                    my $msg = 'There is an unrecognized interface in the database ('.$ifDescr.') for '.$suffix;
-                                    my $a = ($options{'probe_level'} > 1) ? 'Omit'    : 'Delete';
-                                    my $b = ($options{'probe_level'} > 1) ? 'Include' : 'Ignore';
-                                    my $choice = choose ($a,$b,$msg);
-                                    if ($choice eq $b) {
-                                        $device->{'interfaces'}{$ifDescr}{'ifDescr'} = $ifDescr;
-                                        my $interface = $device->{'interfaces'}{$ifDescr};
-                                        $interface->{'device'}     = $device
-                                        $interface->{'info'}{$_}   = $row->{$_} foreach @{$settings{'InfoFields'}};
-                                        $interface->{'recognized'} = 1;
-                                    }
-                                }
-                                when ('duplicate') {
+    foreach my $ip (sort keys %$nodes) {
+        my $node = $nodes->{$ip};
+        #say $node->{'hostname'}; #XXX
+        foreach my $serial (sort keys %{$node->{'devices'}}) {
+            my $device = $node->{'devices'}{$serial};
+            #say '  '.$device->{'serial'}; #XXX
+            if ($device->{'recognized'}) {
+                foreach my $conflict (sort keys %{$device->{'conflicts'}}) {
+                    #say '    '.$conflict; #XXX
+                    while (my $row = shift @{$device->{'conflicts'}{$conflict}}) {
+                        my $ifDescr = $row->{$settings{'InterfaceField'}};
+                        #say '      '.$ifDescr; #XXX
+                        given ($conflict) {
+                            my $suffix = $serial.' at '.$ip.' ('.$node->{'hostname'}.').';
+                            when ('unrecognized') {
+                                my $msg = 'There is an unrecognized interface in the database ('.$ifDescr.') for '.$suffix;
+                                my $a = ($options{'probe_level'} > 1) ? 'Omit'    : 'Delete';
+                                my $b = ($options{'probe_level'} > 1) ? 'Include' : 'Ignore';
+                                my $choice = $b; #XXX : choose ($a,$b,$msg);
+                                if ($choice eq $b) {
+                                    $device->{'interfaces'}{$ifDescr}{'ifDescr'} = $ifDescr;
                                     my $interface = $device->{'interfaces'}{$ifDescr};
-                                    my $msg = 'There is more than one entry in the database with information for '.$ifDescr.' on '.$suffix;
-                                    my $a = '(old) ';
-                                    my $b = '(new) ';
-                                    foreach my $field (@{$settings{'InfoFields'}}) {
-                                        $a .= ', ' unless $a eq '(old) ';
-                                        $b .= ', ' unless $b eq '(new) ';
-                                        $a .= $interface->{'info'}{$field};
-                                        $b .= $row->{$field};
-                                    }
-                                    my $choice = choose ($a,$b,$msg);
-                                    if ($choice eq $b) {
-                                        $interface->{'info'}{$_} = $row->{$_} foreach @{$settings{'InfoFields'}};
-                                    }
-                                }
-                                default {
-                                    warn 'unknown conflict';
+                                    $interface->{'device'}     = $device;
+                                    $interface->{'info'}{$_}   = $row->{$_} foreach @{$settings{'InfoFields'}};
+                                    $interface->{'recognized'} = 1;
                                 }
                             }
+                            when ('duplicate') {
+                                my $interface = $device->{'interfaces'}{$ifDescr};
+                                my $msg = 'There is more than one entry in the database with information for '.$ifDescr.' on '.$suffix;
+                                my $a = '(old) ';
+                                my $b = '(new) ';
+                                foreach my $field (@{$settings{'InfoFields'}}) {
+                                    $a .= ', ' unless $a eq '(old) ';
+                                    $b .= ', ' unless $b eq '(new) ';
+                                    $a .= $interface->{'info'}{$field};
+                                    $b .= $row->{$field};
+                                }
+                                my $choice = choose ($a,$b,$msg);
+                                if ($choice eq $b) {
+                                    $interface->{'info'}{$_} = $row->{$_} foreach @{$settings{'InfoFields'}};
+                                }
+                            }
+                            default {
+                                alert 'Resolution of an unsupported conflict ('.$conflict.') has been attempted.';
+                            }
                         }
-                        delete $device->{'conflicts'}{$conflict};
                     }
-                    delete $device->{'conflicts'};
+                    delete $device->{'conflicts'}{$conflict};
                 }
-                else {
-                    say 'A new device ('.$device.') that is not present in the database has been detected.';
-                    if (ask 'Would you like to initialize it now?') {
+                delete $device->{'conflicts'};
+            }
+            else {
+                note ($settings{'BogeyLog'},$ip.' ('.$node->{'hostname'}.') '.$device->{'serial'});
+                if ($options{'probe_level'} > 1) {
+                    say 'A new device ('.$device->{'serial'}.') has been detected on '.$node->{'hostname'}.' that is not present in the database.';
+                    if (0) { #XXX : ask 'Would you like to initialize it now?') {
                         foreach my $ifDescr (sort keys %{$device->{'interfaces'}}) {
                             my $interface = $device->{'interfaces'}{$ifDescr};
                             say 'An interface ('.$ifDescr.') for '.$serial.' on '.$node->{'hostname'}.' is missing information.';
@@ -657,7 +669,6 @@ sub resolve_conflicts {
             }
         }
     }
-    return $resolve_conflicts;
 }
 
 
@@ -705,7 +716,7 @@ sub identify {
     else {
         $db = DB;
         #my $query = $db->prepare('SELECT '.$fields.' FROM '.$settings{'Table'});
-        my $query = $db->prepare('SELECT * FROM '.$settings{'Table'});
+        my $query = $db->prepare('SELECT * FROM '.$settings{'Table'}); #XXX
         $query->execute;
         @data = @{$query->fetchall_arrayref({})};
     }
@@ -875,9 +886,11 @@ sub run {
 
 
 
+say 'configuring (using '.$options{'conf_file'}.')...' unless $options{'quiet'};
 %settings = configure ($options{'conf_file'},{
     'Indent'      => 4,
     'NodeOrder'   => 4,
+    'BogeyLog'    => 'var/log/bogies.log',
     'NodeLog'     => 'var/log/nodes.log',
     'StackLog'    => 'var/log/stacks.log',
     'Probe1Cache' => 'var/dns.txt',

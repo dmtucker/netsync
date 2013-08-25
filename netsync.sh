@@ -1,6 +1,6 @@
 #! /bin/bash
 
-RUN="perl -Isrc/lib/ bin/netsync"
+RUN="perl -Isrc/lib bin/netsync"
 
 #set -o xtrace
 clear

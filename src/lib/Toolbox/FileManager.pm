@@ -4,7 +4,7 @@ package Toolbox::FileManager;
 
 require Exporter;
 @ISA = (Exporter);
-@EXPORT = ('note');
+@EXPORT = ('alert','note');
 
 use feature 'say';
 
@@ -25,6 +25,16 @@ sub note {
     print {$files{$file}} timestamp.' ' if $stamp;
     say   {$files{$file}} $note;
     return 1;
+}
+
+
+sub alert {
+    warn 'too few arguments'  if @_ < 1;
+    warn 'too many arguments' if @_ > 1;
+    my ($message) = @_;
+    
+    warn $message;
+    note ('var/log/alerts.log',$message);
 }
 
 
