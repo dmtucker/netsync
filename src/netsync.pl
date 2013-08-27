@@ -22,6 +22,7 @@ use Text::CSV;
 
 use Toolbox::Configurator;
 use Toolbox::FileManager;
+use Toolbox::UserInterface;
 
 
 our (%options,%settings,$VERSION);
@@ -29,7 +30,7 @@ our (%options,%settings,$VERSION);
 
 BEGIN {
     $VERSION = '0.0';
-    $options{'options'}   = 'c:p:Dd:';
+    $options{'options'}   = 'c:p:D:d:';
     $options{'arguments'} = '[nodes]';
     
     $Data::Dumper::Sortkeys = 1; #XXX
@@ -37,13 +38,14 @@ BEGIN {
     $| = 1;
     
     #SNMP::initMib(); #XXX
-    SNMP::loadModules('ENTITY-MIB');            # standard
-    SNMP::loadModules('FOUNDRY-SN-SWITCH-GROUP-MIB'); # Brocade #XXX : needed?, why?
-    #SNMP::loadModules('FOUNDRY-SN-AGENT-MIB');  # Brocade
-    SNMP::loadModules('CISCO-STACK-MIB');       # Cisco
-    SNMP::loadModules('SEMI-MIB');             # HP #XXX : needed?, why?
-    #SNMP::loadModules('HP-httpManageable-MIB'); # HP #XXX
-    #SNMP::loadModules('HP-SN-AGENT-MIB');       # HP #XXX : needed?
+    SNMP::loadModules('IF-MIB');
+    SNMP::loadModules('ENTITY-MIB');
+    
+    SNMP::loadModules('CISCO-STACK-MIB');             # Cisco
+    SNMP::loadModules('FOUNDRY-SN-AGENT-MIB');        # Brocade
+    SNMP::loadModules('FOUNDRY-SN-SWITCH-GROUP-MIB'); # Brocade
+    SNMP::loadModules('HP-SN-AGENT-MIB');             # HP
+    SNMP::loadModules('SEMI-MIB');                    # HP
 }
 
 
@@ -70,20 +72,20 @@ sub HELP_MESSAGE {
     my $opts = $options{'options'};
     $opts =~ s/[:]+//g;
     say ((basename $0).' [-'.$opts.'] '.$options{'arguments'});
-    say '  -h       Help. Print usage and options.';
-    say '  -q       Quiet. Print nothing.';
-    say '  -v       Verbose. Print everything.';
-    say '  -V       Version. Print build information.';
+    say '  -h        Help. Print usage and options.';
+    say '  -q        Quiet. Print nothing.';
+    say '  -v        Verbose. Print everything.';
+    say '  -V        Version. Print build information.';
     
     #vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv#
     
-    say '  -c .ini  Specify a configuration file to use.';
-    say '  -p #     Probe. There are 2 probe levels:';
-    say '               1: Probe the network for active nodes.';
-    say '               2: Probe the database for those nodes.';
-    say '  -D       Use DNS to retrieve a node listing.';
-    say '  -d .csv  Specify an RFC4180-compliant database file to use.';
-    say '  nodes    Specify an RFC1035-compliant network node list to use.';
+    say '  -c .ini     Specify a configuration file to use.';
+    say '  -p #        Probe. There are 2 probe levels:';
+    say '                  1: Probe the network for active nodes.';
+    say '                  2: Probe the database for those nodes.';
+    say '  -D pattern  Use DNS to retrieve a list of hosts matching the pattern.';
+    say '  -d .csv     Specify an RFC4180-compliant database file to use.';
+    say '  nodes       Specify an RFC1035-compliant network node list to use.';
 }
 
 
@@ -109,7 +111,7 @@ INIT {
         exit 1;
     }
     $options{'use_DNS'} = $opts{'D'} // 0; #/#XXX
-    $options{'use_CSV'} = (exists $opts{'d'} and $opts{'d'} =~ /[\S]+/) ? $opts{'d'} : undef;
+    $options{'use_CSV'} = $opts{'d'} // 0; #/#XXX
     $options{'node_list'} = $ARGV[0] // '-'; #/#XXX
 }
 
@@ -173,29 +175,29 @@ sub device_interfaces {
     warn 'too many arguments' if @_ > 2;
     my ($vendor,$session) = @_;
     
-    my %serial2ifDescr;
+    my %serial2ifName;
     {
-        my %if2ifDescr;
+        my %if2ifName;
         {
-            my ($types) = SNMP_get1 ([['.1.3.6.1.2.1.2.2.1.3'  => 'ifType']],$session); # IF-MIB
-            my ($ifDescrs,$ifs) = SNMP_get1 ([
+            my ($types) = SNMP_get1 ([['.1.3.6.1.2.1.2.2.1.3' => 'ifType']],$session); # IF-MIB
+            my ($ifNames,$ifs) = SNMP_get1 ([
                 ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],  # IF-MIB
                 ['.1.3.6.1.2.1.2.2.1.2'    => 'ifDescr'], # IF-MIB
             ],$session); # IF-MIB
             foreach my $i (keys @$ifs) {
-                $if2ifDescr{$ifs->[$i]} = $ifDescrs->[$i] if $types->[$i] =~ /^(?!1|24|53)$/;
-                note (get_config 'general.Log','foreign type encountered ('.$types->[$i].') on interface '.$ifDescrs->[$i]) if $types->[$i] =~ /^(?!1|6|24|53)$/; #XXX
+                alert 'Malformed IF-MIB results have been received.' and next unless defined $types->[$i] and defined $ifNames->[$i];
+                $if2ifName{$ifs->[$i]} = $ifNames->[$i] if $types->[$i] =~ /^(?!1|24|53)[0-9]+$/;
+                alert 'A foreign ifType ('.$types->[$i].') has been encountered on interface '.$ifNames->[$i] if $types->[$i] =~ /^(?!1|6|24|53)[0-9]+$/;
             }
-            @if2ifDescr{@$ifs} = @$ifDescrs;
         }
         
         my @serials;
         {
-            my ($classes) = SNMP_get1 ([['.1.3.6.1.2.1.47.1.1.1.1.5'  => 'entPhysicalClass']],$session);     # ENTITY-MIB
             my ($serials) = SNMP_get1 ([['.1.3.6.1.2.1.47.1.1.1.1.11' => 'entPhysicalSerialNum']],$session); # ENTITY-MIB
             if (defined $serials) {
+                my ($classes) = SNMP_get1 ([['.1.3.6.1.2.1.47.1.1.1.1.5' => 'entPhysicalClass']],$session);  # ENTITY-MIB
                 foreach my $i (keys @$classes) {
-                    push (@serials,$serials->[$i]) if $classes->[$i] =~ /3/; #XXX and defined $serials->[$i];
+                    push (@serials,$serials->[$i]) if $classes->[$i] =~ /3/;
                 }
             }
         }
@@ -211,16 +213,15 @@ sub device_interfaces {
                 when ('foundry') {
                     my ($serials) = SNMP_get1 ([
                         ['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum'], # FOUNDRY-SN-AGENT-MIB?
-                        ['.1.3.6.1.4.1.1991.1.1.1.1.2'     => 'snChasSerNum'],     # FOUNDRY-SN-AGENT-MIB? - stackless
+                        ['.1.3.6.1.4.1.1991.1.1.1.1.2'     => 'snChasSerNum'],     # FOUNDRY-SN-AGENT-MIB (stackless)
                     ],$session);
                     @serials = @$serials;
                 }
                 when ('hp') {
                     my ($serials) = SNMP_get1 ([
-                        ['.1.3.6.1.4.1.11.2.36.1.1.5.1.1.10' => 'hpHttpMgDeviceSerialNumber'], # ?
-                        ['.1.3.6.1.4.1.11.2.36.1.1.2.9'      => 'hpHttpMgSerialNumber'],       # HP-httpManageable-MIB
-                        #['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2'     => 'snChasUnitSerNum'],           # HP-SN-AGENT-MIB?
-                        #['.1.3.6.1.4.1.11.2.3.7.11.12.1.1.1.2' => 'snChasSerNum'],               # HP-SN-AGENT-MIB - stackless?
+                        ['.1.3.6.1.4.1.11.2.36.1.1.5.1.1.10'   => 'hpHttpMgDeviceSerialNumber'], # SEMI-MIB
+                        ['.1.3.6.1.4.1.11.2.36.1.1.2.9'        => 'hpHttpMgSerialNumber'],       # SEMI-MIB
+                        ['.1.3.6.1.4.1.11.2.3.7.11.12.1.1.1.2' => 'snChasSerNum'],               # HP-SN-AGENT-MIB (stackless?)
                     ],$session);
                     @serials = @$serials;
                 }
@@ -235,18 +236,18 @@ sub device_interfaces {
         }
         
         if (@serials == 1) {
-            push (@{$serial2ifDescr{$serials[0]}},$_) foreach values %if2ifDescr;
+            push (@{$serial2ifName{$serials[0]}},$_) foreach values %if2ifName;
         }
         else {
-            my %ifDescr2serial;
+            my %ifName2serial;
             given ($vendor) {
                 when ('cisco') {
                     my %if2serial;
                     {
-                        my ($port2if) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.11' => 'portIfIndex']],$session);
+                        my ($port2if) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.11' => 'portIfIndex']],$session); # CISCO-STACK-MIB
                         my @port2serial;
                         {
-                            my ($port2module) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.1'  => 'portModuleIndex']],$session);
+                            my ($port2module) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.1'  => 'portModuleIndex']],$session); # CISCO-STACK-MIB
                             my %module2serial;
                             {
                                 my ($serials,$modules) = SNMP_get1 ([
@@ -259,15 +260,15 @@ sub device_interfaces {
                         }
                         @if2serial{@$port2if} = @port2serial;
                     }
-                    $ifDescr2serial{$if2ifDescr{$_}} = $if2serial{$_} foreach keys %if2ifDescr;
+                    $ifName2serial{$if2ifName{$_}} = $if2serial{$_} foreach keys %if2ifName;
                 }
                 when ('foundry') {
                     my %if2serial;
                     {
-                        my ($port2if) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.38' => 'snSwPortIfIndex']],$session);
+                        my ($port2if) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.38' => 'snSwPortIfIndex']],$session); # FOUNDRY-SN-SWITCH-GROUP-MIB
                         my @port2serial;
                         {
-                            my ($port2umi) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.39' => 'snSwPortDescr']],$session);
+                            my ($port2umi) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.39' => 'snSwPortDescr']],$session); # FOUNDRY-SN-SWITCH-GROUP-MIB
                             my %module2serial;
                             {
                                 my ($serials,$modules) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum']],$session); # FOUNDRY-SN-AGENT-MIB?
@@ -279,25 +280,37 @@ sub device_interfaces {
                         }
                         @if2serial{@$port2if} = @port2serial;
                     }
-                    $ifDescr2serial{$if2ifDescr{$_}} = $if2serial{$_} foreach keys %if2ifDescr;
+                    $ifName2serial{$if2ifName{$_}} = $if2serial{$_} foreach keys %if2ifName;
                 }
                 default {
                     alert 'Interface mapping attempted on an unsupported device vendor ('.$vendor.')';
                 }
             }
-            foreach my $ifDescr (keys %ifDescr2serial) {
-                
-                # Remove Vlan, Null0, and loopback interfaces
-                unless (defined $ifDescr2serial{$ifDescr}) {
-                    delete $ifDescr2serial{$ifDescr};
-                    next;
-                }
-                
-                push (@{$serial2ifDescr{$ifDescr2serial{$ifDescr}}},$ifDescr);
+            foreach my $ifName (keys %ifName2serial) {
+                push (@{$serial2ifName{$ifName2serial{$ifName}}},$ifName) if defined $ifName2serial{$ifName};
             }
         }
     }
-    return \%serial2ifDescr;
+    
+    return %serial2ifName;
+}
+
+
+
+
+sub initialize_node {
+    warn 'too few arguments'  if @_ < 1;
+    warn 'too many arguments' if @_ > 1;
+    my ($node) = @_;
+    
+    return undef unless defined $node->{'session'} and defined $node->{'info'};
+    my %serial2ifName = device_interfaces ($node->{'info'}->vendor,$node->{'session'});
+    my @serials = keys %serial2ifName;
+    return @serials unless @serials > 0;
+    foreach my $serial (@serials) {
+        initialize_device ($node,$serial,$serial2ifName{$serial});
+    }
+    return @serials;
 }
 
 
@@ -312,50 +325,44 @@ sub dump_node {
             say $node->{'ip'}.' ('.$node->{'hostname'}.')';
         }
         else {
-            alert 'A locationless node has been detected.';
+            alert 'A malformed node has been detected.';
         }
         
-        my $device_count;
+        my $device_count = 0;
         if (defined $node->{'devices'}) {
             $device_count = scalar keys %{$node->{'devices'}};
+            
             my ($recognized_device_count,$interface_count,$recognized_interface_count) = (0,0,0);
             foreach my $serial (keys %{$node->{'devices'}}) {
                 my $device = $node->{'devices'}{$serial};
                 ++$recognized_device_count if $device->{'recognized'};
-                if (defined $device->{'interfaces'}) {
-                    $interface_count += scalar keys %{$device->{'interfaces'}};
-                    foreach my $ifDescr (keys %{$device->{'interfaces'}}) {
-                        my $interface = $device->{'interfaces'}{$ifDescr};
-                        ++$recognized_interface_count if $interface->{'recognized'};
-                    }
-                }
-                else {
-                    alert 'An interfaceless device ('.$serial.') has been detected on '.$node->{'hostname'}.'.';
+                next unless defined $device->{'interfaces'};
+                $interface_count += scalar keys %{$device->{'interfaces'}};
+                foreach my $ifName (keys %{$device->{'interfaces'}}) {
+                    my $interface = $device->{'interfaces'}{$ifName};
+                    ++$recognized_interface_count if $interface->{'recognized'};
                 }
             }
             print ((' 'x$settings{'Indent'}).$device_count.' device');
-            print 's' if $device_count > 1;
-            say ' ('.$recognized_device_count.' recognized)';
+            print 's' if $device_count != 1;
+            print ' ('.$recognized_device_count.' recognized)' if $recognized_device_count > 0;
+            print "\n";
             print ((' 'x$settings{'Indent'}).$interface_count.' interface');
-            print 's' if $interface_count > 1;
-            say ' ('.$recognized_interface_count.' recognized)';
+            print 's' if $interface_count != 1;
+            print ' ('.$recognized_interface_count.' recognized)' if $recognized_interface_count > 0;
+            print "\n";
         }
         else {
             alert 'A deviceless node ('.$node->{'hostname'}.') has been detected.';
         }
         
-        if (defined $node->{'info'}) { # and blessed $node->{'info'} and $node->{'info'}->isa('SNMP::Info') { #XXX
+        if (defined $node->{'info'}) {
             my $info = $node->{'info'};
             if ($device_count == 1) {
                 #say ((' 'x$settings{'Indent'}).$info->class); #XXX
                 say ((' 'x$settings{'Indent'}).$info->vendor.' '.$info->model);
                 say ((' 'x$settings{'Indent'}).$info->serial);
             }
-            
-            my $interface_count = scalar keys %{$info->interfaces};
-            print ((' 'x$settings{'Indent'}).$interface_count.' interface');
-            print 's' if scalar $interface_count > 1;
-            print "\n";
         }
         else {
             alert 'An informationless node ('.$node->{'hostname'}.') has been detected.';
@@ -363,6 +370,111 @@ sub dump_node {
     }
     say scalar (@nodes).' nodes' if @nodes > 1;
 }
+
+
+
+
+sub initialize_device {
+    warn 'too few arguments'  if @_ < 2;
+    warn 'too many arguments' if @_ > 3;
+    my ($node,$serial,$ifNames) = @_;
+    $ifNames //= []; #/#XXX
+    
+    $serial = uc $serial;
+    $node->{'devices'}{$serial}{'serial'} = $serial;
+    my $device = $node->{'devices'}{$serial};
+    $device->{'node'} = $node;
+    foreach my $ifName (@$ifNames) {
+        initialize_interface ($device,$ifName);
+    }
+    $device->{'recognized'} = 0;
+    return $device;
+}
+
+
+
+
+sub dump_device {
+    warn 'too few arguments' if @_ < 1;
+    my (@devices) = @_;
+    
+    foreach my $device (@devices) {
+        if (defined $device->{'serial'} and defined $device->{'node'}) {
+            print $device->{'serial'};
+            print ' at '.$device->{'node'}{'ip'};
+            print ' ('.$device->{'node'}{'hostname'}.')';
+        }
+        else {
+            alert 'A malformed device has been detected.';
+        }
+        
+        print "\n"; #say ' - '.($device->{'recognized'}) ? 'recognized' : 'unrecognized' if defined $device->{'recognized'}; #XXX
+        
+        if (defined $device->{'interfaces'}) {
+            my $interface_count = scalar keys %{$device->{'interfaces'}};
+            my $recognized_interface_count = 0;
+            foreach my $ifName (keys %{$device->{'interfaces'}}) {
+                my $interface = $device->{'interfaces'}{$ifName};
+                ++$recognized_interface_count if $interface->{'recognized'};
+            }
+            print ((' 'x$settings{'Indent'}).$interface_count.' interface');
+            print 's' if $interface_count != 1;
+            say ' ('.$recognized_interface_count.' recognized)';
+        }
+    }
+    say scalar (@devices).' devices' if @devices > 1;
+}
+
+
+
+
+sub initialize_interface { #XXX
+    warn 'too few arguments'  if @_ < 2;
+    warn 'too many arguments' if @_ > 3;
+    my ($device,$ifName,$fields) = @_;
+    $fields //= {}; #/#XXX
+    
+    $device->{'interfaces'}{$ifName}{'ifName'} = $ifName;
+    my $interface = $device->{'interfaces'}{$ifName};
+    $interface->{'device'}     = $device;
+    $interface->{'info'}{$_}   = $fields->{$_} foreach keys %$fields;
+    $interface->{'recognized'} = (scalar keys %$fields > 0);
+    return $interface;
+}
+
+
+
+
+sub dump_interface {
+    warn 'too few arguments' if @_ < 1;
+    my (@interfaces) = @_;
+    
+    foreach my $interface (@interfaces) {
+        if (defined $interface->{'ifName'} and defined $interface->{'device'} and defined $interface->{'device'}{'node'}) {
+            print $interface->{'ifName'};
+            print ' on '.$interface->{'device'}{'serial'};
+            print ' at '.$interface->{'device'}{'node'}{'ip'};
+            print ' ('.$interface->{'device'}{'node'}{'hostname'}.')';
+        }
+        else {
+            alert 'A malformed interface has been detected.'
+        }
+        
+        print "\n"; #say ' ('.(($interface->{'recognized'}) ? 'recognized' : 'unrecognized').')' if defined $interface->{'recognized'}; #XXX
+        
+        if (defined $interface->{'info'}) {
+            foreach my $field (sort keys %{$interface->{'info'}}) {
+                say ((' 'x$settings{'Indent'}).$field.': '.$interface->{'info'}{$field});
+            }
+        }
+    }
+    say scalar (@interfaces).' interfaces' if @interfaces > 1;
+}
+
+
+
+
+################################################################################
 
 
 
@@ -377,35 +489,23 @@ sub probe {
         
         my ($session,$info) = SNMP_Info $node->{'ip'};
         if (defined $info) {
-            note ($settings{'NodeLog'},$note.' ACTIVE');
             $node->{'session'} = $session;
             $node->{'info'}    = $info;
         }
         else {
             note ($settings{'NodeLog'},$note.' inactive');
-            say $node->{'ip'}.' ('.$node->{'hostname'}.') -> inactive' if $options{'verbose'};
+            say $note.' inactive' if $options{'verbose'};
             next;
         }
         
-        my $serial2ifDescr = device_interfaces ($info->vendor,$session);
-        my @serials = keys %$serial2ifDescr;
-        note ($settings{'NodeLog'},$note.': no devices detected ('.$info->vendor.')') and next if @serials == 0;
-        note ($settings{'StackLog'},$note.': '.join (' ',@serials)) if @serials > 1;
-        foreach my $serial (@serials) {
-            $node->{'devices'}{$serial}{'serial'} = $serial;
-            my $device = $node->{'devices'}{$serial};
-            $device->{'node'}       = $node;
-            $device->{'recognized'} = 0;
-            foreach my $ifDescr (@{$serial2ifDescr->{$serial}}) {
-                $device->{'interfaces'}{$ifDescr}{'ifDescr'} = $ifDescr;
-                my $interface = $device->{'interfaces'}{$ifDescr};
-                $interface->{'device'}     = $device;
-                $interface->{'recognized'} = 0;
-            }
+        { # Process a newly discovered node.
+            my @serials = initialize_node $node;
+            note ($settings{'NodeLog'},$note.' no devices detected') and next unless @serials > 0;
+            note ($settings{'NodeLog'},$note.' '.join (' ',@serials));
+            $serial_count += @serials;
         }
         
         dump_node $node if $options{'verbose'};
-        $serial_count += @serials;
     }
     return $serial_count;
 }
@@ -420,17 +520,18 @@ sub discover {
     
     unless ($options{'quiet'}) {
         print 'discovering';
-        print ' (using '.(($options{'use_DNS'}) ? 'DNS' : ($options{'node_list'} eq '-') ? 'STDIN' : $options{'node_list'}).')...';
+        print ' (using '.((defined $options{'use_DNS'}) ? 'DNS' : ($options{'node_list'} eq '-') ? 'STDIN' : $options{'node_list'}).')...';
         print (($options{'verbose'}) ? "\n" : (' 'x$settings{'NodeOrder'}).'0');
     }
     
     # Retrieve network nodes from file, pipe, or DNS (-D).
     my @zone;
-    if ($options{'use_DNS'}) {
+    if (defined $options{'use_DNS'}) {
         my $resolver = DNS;
         $resolver->print if $options{'verbose'};
+        $options{'use_DNS'} = '([^.]+)' if $options{'use_DNS'} eq 'all';
         foreach my $record ($resolver->axfr) {
-            push (@zone,$record->string) if $record->name =~ /^($settings{'HostPrefix'})([^.]*)?/;
+            push (@zone,$record->string) if $record->name =~ /^($options{'use_DNS'})\./;
         }
     }
     else {
@@ -444,11 +545,9 @@ sub discover {
         }
     }
     
-    my $inactive_node_count = 0;
-    my $active_device_count = 0;
-    my $stack_count         = 0;
+    my ($inactive_node_count,$deployed_device_count,$stack_count) = (0,0,0);
     foreach (@zone) {
-        if (/^(?<host>[^.]+).*\s(?:$settings{'RecordType'})\s+(?<ip>$RE{'net'}{'IPv4'}|$RE{'net'}{'IPv6'})/) {
+        if (/^(?<host>[^.]+).*\s(?:A|AAAA)\s+(?<ip>$RE{'net'}{'IPv4'}|$RE{'net'}{'IPv6'})/) {
             $nodes->{$+{'ip'}}{'ip'} = $+{'ip'};
             my $node = $nodes->{$+{'ip'}};
             $node->{'hostname'} = $+{'host'};
@@ -459,9 +558,9 @@ sub discover {
                 delete $nodes->{$+{'ip'}};
             }
             else {
-                $active_device_count += $serial_count;
-                
+                $deployed_device_count += $serial_count;
                 ++$stack_count if $serial_count > 1;
+                
                 note ($settings{'Probe1Cache'},$_,0,'>') if $options{'probe_level'} > 0;
                 
                 unless ($options{'quiet'} or $options{'verbose'}) {
@@ -473,10 +572,12 @@ sub discover {
     }
     
     unless ($options{'quiet'}) {
-        print scalar keys %$nodes if $options{'verbose'};
-        print ' nodes';
+        my $node_count = scalar keys %$nodes;
+        print $node_count if $options{'verbose'};
+        print ' node';
+        print 's' if $node_count > 1;
         print ' ('.$inactive_node_count.' inactive)' if $inactive_node_count > 0;
-        print ', '.$active_device_count.' devices';
+        print ', '.$deployed_device_count.' devices';
         print ' ('.$stack_count.' stacks)' if $stack_count > 0;
         print "\n";
     }
@@ -492,58 +593,25 @@ sub discover {
 
 
 
-sub recognize {
+sub detect_conflicts {
     warn 'too few arguments'  if @_ < 2;
     warn 'too many arguments' if @_ > 2;
-    my ($nodes,$device) = @_;
-    
-    my $node;
-    foreach my $ip (keys %$nodes) {
-        if (exists $nodes->{$ip}{'devices'}{$device}) {
-            $nodes->{$ip}{'devices'}{$device}{'recognized'} = 1;
-            $node = $nodes->{$ip};
-            last;
-        }
-    }
-    return $node;
-}
-
-
-
-
-sub synchronize {
-    warn 'too few arguments' if @_ < 3;
-    my ($nodes,$recognized,@rows) = @_;
+    my ($device,$rows) = @_;
     
     my $conflict_count = 0;
-    foreach my $row (@rows) {
-        my $serial  = $row->{$settings{'DeviceField'}};
-        my $ifDescr = $row->{$settings{'InterfaceField'}};
-        
-        my $node;
-        $recognized->{$serial} //= recognize ($nodes,$serial); #/#XXX
-        $node = $recognized->{$serial};
-        next unless defined $node;
-        #say $node->{'ip'}.' ('.$node->{'hostname'}.'): '.$serial if $options{'verbose'}; #XXX
-        
-        # Detect conflicts.
-        my $device = $node->{'devices'}{$serial};
-        if (defined $device->{'interfaces'}{$ifDescr}) {
-            my $interface = $device->{'interfaces'}{$ifDescr};
+    foreach my $row (@$rows) {
+        my $ifName = $row->{$settings{'InterfaceField'}};
+        if (defined $device->{'interfaces'}{$ifName}) {
+            my $interface = $device->{'interfaces'}{$ifName};
+            
             if ($interface->{'recognized'}) {
                 ++$conflict_count;
                 push (@{$interface->{'conflicts'}{'duplicate'}},$row);
             }
-            else {
-                ++$interface->{'recognized'};
-                foreach my $field (@{$settings{'InfoFields'}}) {
-                    $interface->{'info'}{$field} = $row->{$field};
-                }
-            }
         }
         else {
             ++$conflict_count;
-            push (@{$device->{'conflicts'}{'unrecognized'}},$row);
+            push (@{$device->{'conflicts'}{'misnamed'}},$row);
         }
     }
     return $conflict_count;
@@ -552,93 +620,56 @@ sub synchronize {
 
 
 
-sub choose {
-    warn 'too few arguments'  if @_ < 2;
-    warn 'too many arguments' if @_ > 3;
-    my ($a,$b,$msg) = @_;
-    $msg //= 'A conflict has been discovered.'; #/#XXX
-    
-    open (STDIN,'<',POSIX::ctermid) if $options{'node_list'} eq '-'; #XXX
-    while (1) {
-        print "\n" unless $options{'verbose'};
-        say $msg;
-        say 'Choose one of the following:';
-        say ((' 'x$settings{'Indent'}).'[A]: '.$a);
-        say ((' 'x$settings{'Indent'}).' B : '.$b);
-        print "Choice: ";
-        chomp (my $input = <STDIN>);
-        return $a if $input =~ /^([aA1]+)?$/;
-        return $b if $input =~ /^[bB2]+$/;
-        say 'A decision could not be determined from your response. Try again.';
-    }
-}
-
-
-
-
-sub ask {
-    warn 'too few arguments'  if @_ < 1;
-    warn 'too many arguments' if @_ > 1;
-    my ($question) = @_;
-    
-    open (STDIN,'<',POSIX::ctermid) if $options{'node_list'} eq '-';
-    while (1) {
-        print $question.' [y/n] ';
-        chomp (my $response = <STDIN>);
-        return 1 if $response =~ /^([yY]+([eE]+[sS]+)?)$/;
-        return 0 if $response =~ /^([nN]+([oO]+)?)$/;
-        say 'A decision could not be determined from your response. Try again.';
-    }
-}
-
-
-
-
 sub resolve_conflicts {
     warn 'too few arguments'  if @_ < 1;
-    warn 'too many arguments' if @_ > 1;
-    my ($nodes) = @_;
+    warn 'too many arguments' if @_ > 2;
+    my ($nodes,$auto) = @_;
+    $auto //= 0; #/#XXX
     
     foreach my $ip (sort keys %$nodes) {
         my $node = $nodes->{$ip};
-        #say $node->{'hostname'}; #XXX
         foreach my $serial (sort keys %{$node->{'devices'}}) {
             my $device = $node->{'devices'}{$serial};
-            #say '  '.$device->{'serial'}; #XXX
             if ($device->{'recognized'}) {
                 foreach my $conflict (sort keys %{$device->{'conflicts'}}) {
-                    #say '    '.$conflict; #XXX
                     while (my $row = shift @{$device->{'conflicts'}{$conflict}}) {
-                        my $ifDescr = $row->{$settings{'InterfaceField'}};
-                        #say '      '.$ifDescr; #XXX
+                        my $ifName   = $row->{$settings{'InterfaceField'}};
                         given ($conflict) {
                             my $suffix = $serial.' at '.$ip.' ('.$node->{'hostname'}.').';
-                            when ('unrecognized') {
-                                my $msg = 'There is an unrecognized interface in the database ('.$ifDescr.') for '.$suffix;
-                                my $a = ($options{'probe_level'} > 1) ? 'Omit'    : 'Delete';
-                                my $b = ($options{'probe_level'} > 1) ? 'Include' : 'Ignore';
-                                my $choice = $b; #XXX : choose ($a,$b,$msg);
-                                if ($choice eq $b) {
-                                    $device->{'interfaces'}{$ifDescr}{'ifDescr'} = $ifDescr;
-                                    my $interface = $device->{'interfaces'}{$ifDescr};
-                                    $interface->{'device'}     = $device;
-                                    $interface->{'info'}{$_}   = $row->{$_} foreach @{$settings{'InfoFields'}};
-                                    $interface->{'recognized'} = 1;
+                            when ('misnamed') {
+                                my $recognize = $auto;
+                                unless ($auto) {
+                                    my $message = 'There is an misnamed interface in the database ('.$ifName.') for '.$suffix;
+                                    my @choices;
+                                    push (@choices,($options{'probe_level'} > 1) ? 'Omit'    : 'Delete');
+                                    push (@choices,($options{'probe_level'} > 1) ? 'Include' : 'Ignore');
+                                    $recognize = (choose ($message,\@choices) eq $choices[1]);
+                                }
+                                if ($recognize) {
+                                    my $fields = {};
+                                    foreach my $field (@{$settings{'InfoFields'}}) {
+                                        $fields->{$field} = $row->{$field};
+                                    }
+                                    initialize_interface ($device,$ifName,$fields);
                                 }
                             }
                             when ('duplicate') {
-                                my $interface = $device->{'interfaces'}{$ifDescr};
-                                my $msg = 'There is more than one entry in the database with information for '.$ifDescr.' on '.$suffix;
-                                my $a = '(old) ';
-                                my $b = '(new) ';
-                                foreach my $field (@{$settings{'InfoFields'}}) {
-                                    $a .= ', ' unless $a eq '(old) ';
-                                    $b .= ', ' unless $b eq '(new) ';
-                                    $a .= $interface->{'info'}{$field};
-                                    $b .= $row->{$field};
+                                my $interface = $device->{'interfaces'}{$ifName};
+                                my $new = $auto;
+                                unless ($auto) {
+                                    my $message = 'There is more than one entry in the database with information for '.$ifName.' on '.$suffix;
+                                    my @choices;
+                                    push (@choices,'(old) ');
+                                    push (@choices,'(new) ');
+                                    foreach my $field (@{$settings{'InfoFields'}}) {
+                                        $choices[0] .= ', ' unless $choices[0] eq '(old) ';
+                                        $choices[1] .= ', ' unless $choices[1] eq '(new) ';
+                                        $choices[0] .= $interface->{'info'}{$field};
+                                        $choices[1] .= $row->{$field};
+                                    }
+                                    $new = (choose ($message,\@choices) eq $choices[1]);
                                 }
-                                my $choice = choose ($a,$b,$msg);
-                                if ($choice eq $b) {
+                                if ($new) {
                                     $interface->{'info'}{$_} = $row->{$_} foreach @{$settings{'InfoFields'}};
                                 }
                             }
@@ -650,15 +681,20 @@ sub resolve_conflicts {
                     delete $device->{'conflicts'}{$conflict};
                 }
                 delete $device->{'conflicts'};
+                
+                foreach my $ifName (keys %{$device->{'interfaces'}}) {
+                    my $interface = $device->{'interfaces'}{$ifName};
+                    note ($settings{'BogeyLog'},$ip.' ('.$node->{'hostname'}.') '.$device->{'serial'}.' '.$ifName) unless $interface->{'recognized'};
+                }
             }
             else {
                 note ($settings{'BogeyLog'},$ip.' ('.$node->{'hostname'}.') '.$device->{'serial'});
-                if ($options{'probe_level'} > 1) {
+                if ($options{'probe_level'} > 1 and not $auto) {
                     say 'A new device ('.$device->{'serial'}.') has been detected on '.$node->{'hostname'}.' that is not present in the database.';
-                    if (0) { #XXX : ask 'Would you like to initialize it now?') {
-                        foreach my $ifDescr (sort keys %{$device->{'interfaces'}}) {
-                            my $interface = $device->{'interfaces'}{$ifDescr};
-                            say 'An interface ('.$ifDescr.') for '.$serial.' on '.$node->{'hostname'}.' is missing information.';
+                    if (ask 'Would you like to initialize it now?') {
+                        foreach my $ifName (sort keys %{$device->{'interfaces'}}) {
+                            my $interface = $device->{'interfaces'}{$ifName};
+                            say 'An interface ('.$ifName.') for '.$serial.' on '.$node->{'hostname'}.' is missing information.';
                             foreach my $field (@{$settings{'InfoFields'}}) {
                                 print ((' 'x$settings{'Indent'}).$field.': ');
                                 $interface->{'info'}{$field} = <>;
@@ -674,10 +710,78 @@ sub resolve_conflicts {
 
 
 
+sub recognize {
+    warn 'too few arguments'  if @_ < 2;
+    warn 'too many arguments' if @_ > 2;
+    my ($nodes,$serial) = @_;
+    $serial = uc $serial;
+    
+    my $recognized;
+    foreach my $ip (keys %$nodes) {
+        my $node = $nodes->{$ip};
+        if (exists $node->{'devices'}{$serial}) {
+            $node->{'devices'}{$serial}{'recognized'} = 1;
+            $recognized = $node;
+            last;
+        }
+    }
+    return $recognized;
+}
+
+
+
+
+sub synchronize {
+    warn 'too few arguments' if @_ < 3;
+    my ($nodes,$recognized,@rows) = @_;
+    
+    my $conflict_count = 0;
+    foreach my $row (@rows) {
+        my $serial = $row->{$settings{'DeviceField'}};
+        my $ifName = $row->{$settings{'InterfaceField'}};
+        
+        my $node = $recognized->{$serial};
+        unless (defined $node) {
+            $node = recognize ($nodes,$serial);
+            unless (defined $node) {
+                note ($settings{'DeviceLog'},$serial.' undeployed');
+                say $serial.' undeployed' if $options{'verbose'};
+                next;
+            }
+            $recognized->{$serial} = $node;
+            note ($settings{'DeviceLog'},$serial.' @ '.$node->{'ip'}.' ('.$node->{'hostname'}.')'); #XXX
+        }
+        
+        { # Detect conflicts.
+            my $device = $node->{'devices'}{$serial};
+            my $new_conflict_count = detect_conflicts ($device,[$row]);
+            if ($new_conflict_count > 0) {
+                $conflict_count += $new_conflict_count;
+            }
+            else {
+                my $interface = $device->{'interfaces'}{$ifName};
+                ++$interface->{'recognized'};
+                foreach my $field (@{$settings{'InfoFields'}}) {
+                    $interface->{'info'}{$field} = $row->{$field};
+                }
+                
+                dump_interface $interface if $options{'verbose'};
+            }
+        }
+    }
+    return $conflict_count;
+}
+
+
+
+
 sub identify {
     warn 'too few arguments'  if @_ < 1;
     warn 'too many arguments' if @_ > 1;
     my ($nodes) = @_;
+    
+    my $fields = $settings{'DeviceField'}.','.$settings{'InterfaceField'};
+    $fields .= ','.join (',',sort @{$settings{'InfoFields'}});
     
     unless ($options{'quiet'}) {
         print 'identifying';
@@ -686,12 +790,9 @@ sub identify {
     }
     
     # Retrieve node interfaces from database.
-    my $db;
     my @data;
-    my $fields = $settings{'DeviceField'}.','.$settings{'InterfaceField'};
-    $fields .= ','.$_ foreach sort @{$settings{'InfoFields'}};
     if (defined $options{'use_CSV'}) {
-        open ($db,'<',$options{'use_CSV'});
+        open (my $db,'<',$options{'use_CSV'});
         
         my $parser = Text::CSV->new;
         chomp (my @fields = split (',',<$db>));
@@ -712,47 +813,52 @@ sub identify {
             $entry->{$_} = $row->{$_} foreach @fields;
             push (@data,$entry);
         }
+        
+        close $db;
     }
     else {
-        $db = DB;
-        #my $query = $db->prepare('SELECT '.$fields.' FROM '.$settings{'Table'});
-        my $query = $db->prepare('SELECT * FROM '.$settings{'Table'}); #XXX
+        my $db = DB;
+        my $query = $db->prepare('SELECT * FROM '.$settings{'Table'}); #XXX $db->prepare('SELECT '.$fields.' FROM '.$settings{'Table'});
         $query->execute;
         @data = @{$query->fetchall_arrayref({})};
+        $db->disconnect;
     }
     
-    my @unusable_rows; #XXX
-    my %recognized; # $serial => $node map
     my $conflict_count = 0;
-    foreach my $row (@data) {
-        my $valid = [
-            $settings{'DeviceField'},
-            $settings{'InterfaceField'},
-        ];
-        my $invalid = 0;
-        foreach my $field (@$valid) {
-            ++$invalid and last unless defined $row->{$field} and $row->{$field} =~ /[\S]+/;
+    {
+        my %recognized; # $recognized{$serial} == $node
+        
+        foreach my $row (@data) {
+            my $valid = [
+                $settings{'DeviceField'},
+                $settings{'InterfaceField'},
+            ];
+            my $invalid = 0;
+            foreach my $field (@$valid) {
+                ++$invalid and last unless defined $row->{$field} and $row->{$field} =~ /[\S]+/;
+            }
+            next if $invalid;
+            
+            $conflict_count += synchronize ($nodes,\%recognized,$row);
+            
+            unless ($options{'quiet'} or $options{'verbose'}) {
+                print  "\b"x$settings{'NodeOrder'};
+                printf ('%'.$settings{'NodeOrder'}.'d',scalar keys %recognized);
+            }
         }
-        push (@unusable_rows,$row) and next if $invalid;
         
-        $conflict_count += synchronize ($nodes,\%recognized,$row);
-        
-        unless ($options{'quiet'} or $options{'verbose'}) {
-            print  "\b"x$settings{'NodeOrder'};
-            printf ('%'.$settings{'NodeOrder'}.'d',scalar keys %recognized);
+        unless ($options{'quiet'}) {
+            print scalar keys %recognized if $options{'verbose'};
+            print ' recognized';
+            print ' ('.$conflict_count.' conflicts)' if $conflict_count > 0;
+            print "\n";
         }
     }
     
-    unless ($options{'quiet'}) {
-        print scalar keys %recognized if $options{'verbose'};
-        print ' recognized';
-        print ' ('.$conflict_count.' conflicts)' if $conflict_count > 0;
-        print "\n";
-    }
-    
-    # Resolve conflicts.
-    unless ($options{'quiet'} or $conflict_count < 1) {
-        resolve_conflicts $nodes if ask 'Do you want to resolve conflicts now?';
+    { # Resolve conflicts.
+        my $auto = ($conflict_count > 0);
+        $auto = (not ask 'Do you want to resolve conflicts now?') unless $options{'quiet'} or $conflict_count < 1;
+        resolve_conflicts ($nodes,$auto);
     }
     
     if ($options{'probe_level'} > 1) {
@@ -761,10 +867,10 @@ sub identify {
             my $node = $nodes->{$ip};
             foreach my $serial (keys %{$node->{'devices'}}) {
                 my $device = $node->{'devices'}{$serial};
-                foreach my $ifDescr (keys %{$device->{'interfaces'}}) {
-                    my $interface = $device->{'interfaces'}{$ifDescr};
+                foreach my $ifName (keys %{$device->{'interfaces'}}) {
+                    my $interface = $device->{'interfaces'}{$ifName};
                     
-                    my $note = $serial.','.$ifDescr;
+                    my $note = $serial.','.$ifName;
                     foreach my $field (@{$settings{'InfoFields'}}) {
                         $note .= ','.($interface->{'info'}{$field} // ''); #/#XXX
                     }
@@ -773,8 +879,6 @@ sub identify {
             }
         }
     }
-    
-    return $db;
 }
 
 
@@ -786,9 +890,9 @@ sub identify {
 
 
 sub update {
-    warn 'too few arguments'  if @_ < 2;
-    warn 'too many arguments' if @_ > 2;
-    my ($nodes,$db) = @_;
+    warn 'too few arguments'  if @_ < 1;
+    warn 'too many arguments' if @_ > 1;
+    my ($nodes) = @_;
     
     #XXX
 }
@@ -803,63 +907,30 @@ sub update {
 
 sub run {
     
-    # netsync inventories all active network devices listed in [file] or DNS (-D).
+    # netsync discovers all active network devices listed in [nodes] or DNS (-D).
     # It uses gathered information to identify each device in a provided database.
-    # Identified devices are then synchronized unless probing is used (see below).
+    # Identified devices are then updated unless probing is used (see below).
     
-    my $nodes = discover;
-    
-    #  $nodes == {
-    #              $ip => {
-    #                       'devices'  => {
-    #                                       $serial => {
-    #                                                    'interfaces' => {
-    #                                                                      $ifDescr => {
-    #                                                                                    'device'     => $device,
-    #                                                                                    'ifDescr'    => 0, #XXX
-    #                                                                                    'recognized' => 0,
-    #                                                                                  },
-    #                                                                    },
-    #                                                    'node'       => $node;
-    #                                                    'recognized' => 0;
-    #                                                    'serial'     => $serial; #XXX
-    #                                                  },
-    #                                     },
-    #                       'hostname' => SCALAR,
-    #                       'info'     => SNMP::Info,
-    #                       'ip'       => SCALAR,
-    #                       'session'  => SNMP::Session,
-    #                     },
-    #            };
-    
-    exit if $options{'probe_level'} == 1;
-    
-    # Probe Level 1:
-    #     netsync executes the discovery stage only.
-    #     It probes the network for active nodes (logging them appropriately),
-    #     and it creates an RFC1035-compliant list of them (default: var/dns.txt).
-    #     This list may then be used as input to netsync to skip inactive nodes later.
-    
-    my $db = identify $nodes;
+    my $nodes;
     
     #  $nodes == {
     #              $ip => {
     #                       'devices'  => {
     #                                       $serial => {
-    #                                                    'conflicts'  => {
-    #                                                                      'unrecognized' => ARRAY,
+    #                                                    'conflicts'  => { # This key exists during the identification stage only.
+    #                                                                      'misnamed' => ARRAY,
     #                                                                    },
     #                                                    'interfaces' => {
-    #                                                                      $name => {
-    #                                                                                 'conflicts'  => {
-    #                                                                                                   'duplicate',
-    #                                                                                                 },
-    #                                                                                 'device'     => $device,
-    #                                                                                 'info'       => {
-    #                                                                                                   $InfoField => SCALAR,
-    #                                                                                                 },
-    #                                                                                 'recognized' => SCALAR,
-    #                                                                               },
+    #                                                                      $ifName => {
+    #                                                                                   'conflicts'  => { # This key exists during the identification stage only.
+    #                                                                                                     'duplicate' => ARRAY,
+    #                                                                                                   },
+    #                                                                                   'device'     => $device,
+    #                                                                                   'info'       => {
+    #                                                                                                     $field => SCALAR,
+    #                                                                                                   },
+    #                                                                                   'recognized' => SCALAR,
+    #                                                                                 },
     #                                                                    },
     #                                                    'node'       => $node;
     #                                                    'recognized' => SCALAR;
@@ -872,7 +943,17 @@ sub run {
     #                     },
     #            };
     
-    update ($nodes,$db) unless $options{'probe_level'} == 2;
+    discover $nodes;
+    exit if $options{'probe_level'} == 1;
+    
+    # Probe Level 1:
+    #     netsync executes the discovery stage only.
+    #     It probes the network for active nodes (logging them appropriately),
+    #     and it creates an RFC1035-compliant list of them (default: var/dns.txt).
+    #     This list may then be used as input to netsync to skip inactive nodes later.
+    
+    identify $nodes;
+    exit if $options{'probe_level'} == 2;
     
     # Probe Level 2:
     #     netsync executes the discovery and identification stages only.
@@ -880,24 +961,25 @@ sub run {
     #     and it creates an RFC4180-compliant list of them (default: var/db.csv).
     #     This list may then be used as input to netsync to skip synchronization later.
     
-    (defined $options{'use_CSV'}) ? close $db : $db->disconnect;
+    update $nodes;
 }
 
 
 
 
-say 'configuring (using '.$options{'conf_file'}.')...' unless $options{'quiet'};
-%settings = configure ($options{'conf_file'},{
-    'Indent'      => 4,
-    'NodeOrder'   => 4,
-    'BogeyLog'    => 'var/log/bogies.log',
-    'NodeLog'     => 'var/log/nodes.log',
-    'StackLog'    => 'var/log/stacks.log',
-    'Probe1Cache' => 'var/dns.txt',
-    'Probe2Cache' => 'var/db.csv',
-    'HostPrefix'  => '',
-    'RecordType'  => 'A|AAAA',
-},1,1,1);
-validate;
+{ # Read the configuration file.
+    say 'configuring (using '.$options{'conf_file'}.')...' unless $options{'quiet'};
+    %settings = configure ($options{'conf_file'},{
+        'Indent'      => 4,
+        'NodeOrder'   => 4, # network < 10000 nodes
+        'NodeLog'     => 'var/log/nodes.log',
+        'DeviceLog'   => 'var/log/devices.log',
+        'BogeyLog'    => 'var/log/bogies.log',
+        'UpdateLog'   => 'var/log/updates.log',
+        'Probe1Cache' => 'var/dns.txt',
+        'Probe2Cache' => 'var/db.csv',
+    },1,1,1);
+    validate;
+}
 run;
 exit;

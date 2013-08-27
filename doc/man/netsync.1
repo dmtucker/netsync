@@ -12,27 +12,28 @@ DESCRIPTION
     
     The following options are available:
     
-    -h         Help. Print usage and options.
+    -h          Help. Print usage and options.
     
-    -q         Quiet. Print nothing.
+    -q          Quiet. Print nothing.
     
-    -v         Verbose. Print everything.
+    -v          Verbose. Print everything.
     
-    -V         Version. Print build information.
+    -V          Version. Print build information.
     
-    -c .ini    Specify a configuration file to use. (default: etc/netsync.ini)
+    -c .ini     Specify a configuration file to use. (default: etc/netsync.ini)
     
-    -p #       Probe. There are 2 probe levels:
-                   1: Probe the network for active nodes.
-                   2: Probe the database for those nodes.
+    -p #        Probe. There are 2 probe levels:
+                    1: Probe the network for active nodes.
+                    2: Probe the database for those nodes.
     
-    -D         Use DNS to retrieve a node listing.
+    -D pattern  Use DNS to retrieve a list of hosts matching the pattern.
+                    Hint: Use the pattern 'all' to turn of the hostname filter.
     
-    -d .csv    Specify an RFC4180-compliant database file to use.
+    -d .csv     Specify an RFC4180-compliant database file to use.
     
     The following parameters are accepted:
     
-    nodes      Specify an RFC1035-compliant network node list to use.
+    nodes       Specify an RFC1035-compliant network node list to use.
 
 PROBING
     If the probe option is used, netsync will not complete execution entirely,

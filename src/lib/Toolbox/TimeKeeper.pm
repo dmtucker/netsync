@@ -6,6 +6,8 @@ require Exporter;
 @ISA = (Exporter);
 @EXPORT = ('timestamp');
 
+use POSIX;
+
 
 sub timestamp {
     warn 'too many arguments' if @_ > 0;

@@ -1,5 +1,9 @@
+netsync treats the asset management database as a prescripition for what it finds on the network in a sort of de jure/de facto relationship, respectively.
+
 every once in a while (esp. around large network changes or new hardware), check the node log for entries that say no devices found. these are devices that are active, but do not have any of the oids that netsync checks. this is a simple fix in most cases.
 
+
+running a level 2 probe in quiet mode (or say you dont want to resolve when it asks) causes unrecognized interfaces to be included in the dump. it also causes duplicates to be resolved by taking the latest one seen. unrecognized devices are also included in the csv. later entries in a database are considered to have been added later chronologically
 
 
 To remove all extraneous entries in the database, import Probe2Cache (var/db.csv) into the database after running netsync -p2 with either -D (for DNS) or an RFC1035-compliant list of the nodes you wish to include.
@@ -12,16 +16,22 @@ netsync should be run at the following times:
 
 
 
-glossary:
+variable glossary:
 
-device : a serial number associated with a piece of network hardware
-active device   : a device found in the database and on the network
-inactive device : a device found in the database but not on the network (what if network subset was synced????)
- 
-node : a network host that posseses an ip address
-active node   : a reachable node
-inactive node : an unreachable node
+ip                : an ip address possessed by a host
+node              : netsync's internal data structure for a device
+active node       : a reachable node
+inactive node     : an unreachable node
 
-row   : a database entry
-field : a database column name
-value : a database cell
+serial            : a serial number associated with a piece of network hardware
+device            : netsync's internal data structure for a device
+deployed device   : a device found in the database and on the network
+undeployed device : a device found in the database but not on the network
+bogey             : a device found on the network but not in the database
+
+ifDescr           : an identifier associated with a network interface
+interface         : netsync's internal data structure for an interface
+
+row             : a database entry
+field           : a database column name
+value           : a database cell

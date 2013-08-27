@@ -122,6 +122,7 @@ sub dump_config {
 
 
 
+
 sub get_config {
     warn 'too few arguments'  if @_ < 1;
     my (@queries) = @_;
@@ -246,6 +247,8 @@ sub SNMP_Info {
     );
     return ($session,$info);
 }
+
+
 
 
 1;
