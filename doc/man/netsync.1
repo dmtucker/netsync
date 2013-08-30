@@ -2,14 +2,15 @@ NAME
     netsync - network/database utility
 
 SYNOPSIS
-    netsync [-pDdchqvV] [nodes]
+    netsync [-hqvVcpDda] [nodes]
 
 DESCRIPTION
+    For an in-depth visual description of the algorithm, see doc/netsync.svg.
     Execution begins with the parsing of the configuration file (-c).
-    netsync inventories all active network devices listed in [file] or DNS (-D).
+    netsync discovers all active network devices listed in [nodes] or DNS (-D).
     It uses gathered information to identify each device in a provided database.
-    Identified devices are then synchronized unless probing is used (see below).
-    
+    Identified devices are then updated unless probing is used (see below).
+        
     The following options are available:
     
     -h          Help. Print usage and options.
@@ -27,7 +28,7 @@ DESCRIPTION
                     2: Probe the database for those nodes.
     
     -D pattern  Use DNS to retrieve a list of hosts matching the pattern.
-                    Hint: Use the pattern 'all' to turn of the hostname filter.
+                    Hint: Use the pattern 'all' to turn off the hostname filter.
     
     -d .csv     Specify an RFC4180-compliant database file to use.
     
@@ -49,7 +50,7 @@ PROBING
         netsync executes the discovery stage only.
         It probes the network for active nodes (logging them appropriately),
         and it creates an RFC1035-compliant list of them (default: var/dns.txt).
-        This list may then be used as input to netsync to skip inactive nodes.
+        This list may then be used as input to netsync to skip inactive nodes later.
     
     Probe Level 2:
         netsync executes the discovery and identification stages only.
@@ -58,40 +59,40 @@ PROBING
         This list may then be used as input to netsync to skip synchronization later.
 
 EXAMPLES
-    $ netsync.sh -D
+    $ netsync -D "sw[^.]+|hub[0-9]+" -a
     > configuring (using etc/netsync.ini)...
-    > discovering (using DNS)...  785 nodes (44 inactive), 803 devices (12 stacks)
-    > identifying (using Oracle)...  744 recognized
+    > discovering (using DNS)...  780 nodes (50 inactive), 800 devices (10 stacks)
+    > identifying (using DBMS)...  670 recognized (2400 conflicts)
 
     - OR -
 
-    $ dig axfr ucsc.edu | egrep ^sw7 | netsync.sh
+    $ dig axfr domain.tld | egrep ^(sw[^.]+|hub[0-9]+) | netsync
     > configuring (using etc/netsync.ini)...
-    > discovering (using STDIN)...  376 nodes (14 inactive), 394 devices (12 stacks)
-    > identifying (using Oracle)...  345 recognized
+    > discovering (using STDIN)...  780 nodes (50 inactive), 800 devices (10 stacks)
+    > identifying (using DBMS)...  670 recognized (2400 conflicts)
 
     - OR -
 
-    $ netsync.sh -Dp1
+    $ netsync -p1 -D "sw[^.]+|hub[0-9]+"
     > configuring (using etc/netsync.ini)...
-    > discovering (using DNS)...  785 nodes (44 inactive), 803 devices (12 stacks)
+    > discovering (using DBMS)...  780 nodes (50 inactive), 800 devices (10 stacks)
     
-    $ netsync.sh var/dns.txt
+    $ netsync var/dns.txt
     > configuring (using etc/netsync.ini)...
-    > discovering (using DNS)...  785 nodes, 803 devices (12 stacks)
-    > identifying (using Oracle)...  744 recognized
+    > discovering (using var/dns.txt)...  780 nodes, 800 devices (10 stacks)
+    > identifying (using DBMS)...  670 recognized (2400 conflicts)
 
     - OR -
 
-    $ netsync.sh -Dp2
+    $ netsync -p2 -D "sw[^.]+|hub[0-9]+" -a
     > configuring (using etc/netsync.ini)...
-    > discovering (using DNS)...  785 nodes (44 inactive), 803 devices (12 stacks)
-    > identifying (using Oracle)...  744 recognized
+    > discovering (using DNS)...  780 nodes (50 inactive), 800 devices (10 stacks)
+    > identifying (using DBMS)...  670 recognized (2400 conflicts)
     
     $ netsync.sh -d var/db.csv var/dns.txt
     > configuring (using etc/netsync.ini)...
-    > discovering (using DNS)...  785 nodes, 803 devices (12 stacks)
-    > identifying (using Oracle)...  744 recognized
+    > discovering (using var/dns.txt)...  780 nodes, 800 devices (10 stacks)
+    > identifying (using var/db.csv)...  800 recognized
 
 DEPENDENCIES
     Perl Modules:

@@ -199,44 +199,45 @@ sub device_interfaces {
             if (defined $serials) {
                 my ($classes) = SNMP_get1 ([['.1.3.6.1.2.1.47.1.1.1.1.5' => 'entPhysicalClass']],$session);  # ENTITY-MIB
                 foreach my $i (keys @$classes) {
-                    push (@serials,$serials->[$i]) if $classes->[$i] =~ /3/;
+                    push (@serials,$serials->[$i]) if $classes->[$i] =~ /3/ and $serials->[$i] !~ /[^[:ascii:]]/;
                 }
             }
         }
         unless (@serials > 0) {
+            my $serials;
             given ($vendor) {
                 when ('cisco') {
-                    my ($serials) = SNMP_get1 ([
+                    ($serials) = SNMP_get1 ([
                         ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # CISCO-STACK-MIB
                         ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # CISCO-STACK-MIB
                     ],$session);
-                    @serials = @$serials;
                 }
                 when ('foundry') {
-                    my ($serials) = SNMP_get1 ([
+                    ($serials) = SNMP_get1 ([
                         ['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum'], # FOUNDRY-SN-AGENT-MIB?
                         ['.1.3.6.1.4.1.1991.1.1.1.1.2'     => 'snChasSerNum'],     # FOUNDRY-SN-AGENT-MIB (stackless)
                     ],$session);
-                    @serials = @$serials;
                 }
                 when ('hp') {
-                    my ($serials) = SNMP_get1 ([
-                        ['.1.3.6.1.4.1.11.2.36.1.1.5.1.1.10'   => 'hpHttpMgDeviceSerialNumber'], # SEMI-MIB
+                    ($serials) = SNMP_get1 ([
                         ['.1.3.6.1.4.1.11.2.36.1.1.2.9'        => 'hpHttpMgSerialNumber'],       # SEMI-MIB
+                        #['.1.3.6.1.4.1.11.2.36.1.1.5.1.1.10'   => 'hpHttpMgDeviceSerialNumber'], # SEMI-MIB
                         #['.1.3.6.1.4.1.11.2.3.7.11.12.1.1.1.2' => 'snChasSerNum'],               # HP-SN-AGENT-MIB (stackless?)
                     ],$session);
-                    @serials = @$serials;
+                    ($serials) = SNMP_get1 ([['.1.3.6.1.2.1.1.4' => 'sysContact']],$session) if @$serials == 1 and $serials->[0] =~ /[^[:ascii:]]/; #XXX
                 }
                 default {
                     alert 'Serial retrieval attempted on an unsupported device vendor ('.$vendor.')';
                 }
             }
-            if (@serials == 0) {
-                alert 'No serials could be found for a '.$vendor.' device.';
-                return undef;
+            foreach my $serial (@$serials) {
+                push (@serials,$serial) if $serial !~ /[^[:ascii:]]/;
             }
         }
-        
+        if (@serials == 0) {
+            alert 'No serials could be found for a '.$vendor.' device.';
+            return undef;
+        }
         if (@serials == 1) {
             push (@{$serial2ifName{$serials[0]}},$_) foreach values %if2ifName;
         }
@@ -294,7 +295,7 @@ sub device_interfaces {
         }
     }
     
-    return %serial2ifName;
+    return \%serial2ifName;
 }
 
 
@@ -343,11 +344,12 @@ sub initialize_node {
     my ($node) = @_;
     
     return undef unless defined $node->{'session'} and defined $node->{'info'};
-    my %serial2ifName = device_interfaces ($node->{'info'}->vendor,$node->{'session'});
-    my @serials = keys %serial2ifName;
-    return @serials unless @serials > 0;
+    my $serial2ifName = device_interfaces ($node->{'info'}->vendor,$node->{'session'});
+    return 0 unless defined $serial2ifName;
+    
+    my @serials = keys %$serial2ifName;
     foreach my $serial (@serials) {
-        initialize_device ($node,$serial,$serial2ifName{$serial});
+        initialize_device ($node,$serial,$serial2ifName->{$serial});
     }
     return @serials;
 }
@@ -509,11 +511,12 @@ sub discover {
         my $node_count = scalar keys %$nodes;
         print $node_count if $options{'verbose'};
         print ' node';
-        print 's' if $node_count > 1;
+        print 's' unless $node_count == 1;
         print ' ('.$inactive_node_count.' inactive)' if $inactive_node_count > 0;
         print ', '.$deployed_device_count.' devices';
-        print ' ('.$stack_count.' stacks)' if $stack_count > 0;
-        print "\n";
+        print ' ('.$stack_count.' stack' if $stack_count > 0;
+        print 's' if $stack_count > 1;
+        print ")\n";
     }
     
     return $nodes;
@@ -536,7 +539,7 @@ sub recognize {
     my $recognition;
     foreach my $ip (keys %$nodes) {
         my $node = $nodes->{$ip};
-        if (exists $node->{'devices'}{$serial}) {
+        if (defined $node->{'devices'}{$serial}) {
             my $device = $node->{'devices'}{$serial};
             $device->{'recognized'} = 1;
             $recognition = $device;
@@ -595,9 +598,6 @@ sub synchronize {
                 say $serial.' absent' if $options{'verbose'};
                 next;
             }
-            else {
-                say $device->{'serial'};
-            } #XXX
             $recognized->{$serial} = $node = $device->{'node'};
             note ($settings{'DeviceLog'},$serial.' @ '.$node->{'ip'}.' ('.$node->{'hostname'}.')');
         }
