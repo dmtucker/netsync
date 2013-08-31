@@ -13,7 +13,7 @@ DESCRIPTION
         
     The following options are available:
     
-    -h          Help. Print usage and options.
+    -h --help   Help. Print usage and options.
     
     -q          Quiet. Print nothing.
     
@@ -36,7 +36,7 @@ DESCRIPTION
     
     The following parameters are accepted:
     
-    nodes       Specify an RFC1035-compliant network node list to use.
+    [nodes]     Specify an RFC1035-compliant network node list to use.
 
 PROBING
     If the probe option is used, netsync will not complete execution entirely,
@@ -59,35 +59,35 @@ PROBING
         This list may then be used as input to netsync to skip synchronization later.
 
 EXAMPLES
-    $ netsync -D "sw[^.]+|hub[0-9]+" -a
+    $ netsync.sh -D "sw[^.]+|hub[0-9]+" -a
     > configuring (using etc/netsync.ini)...
     > discovering (using DNS)...  780 nodes (50 inactive), 800 devices (10 stacks)
-    > identifying (using DBMS)...  670 recognized (2400 conflicts)
+    > identifying (using DBMS)...  670 recognized (4 conflicts)
 
     - OR -
 
-    $ dig axfr domain.tld | egrep ^(sw[^.]+|hub[0-9]+) | netsync
+    $ dig axfr domain.tld | egrep ^(sw[^.]+|hub[0-9]+) | netsync.sh
     > configuring (using etc/netsync.ini)...
     > discovering (using STDIN)...  780 nodes (50 inactive), 800 devices (10 stacks)
-    > identifying (using DBMS)...  670 recognized (2400 conflicts)
+    > identifying (using DBMS)...  670 recognized (4 conflicts)
 
     - OR -
 
-    $ netsync -p1 -D "sw[^.]+|hub[0-9]+"
+    $ netsync.sh -p1 -D "sw[^.]+|hub[0-9]+"
     > configuring (using etc/netsync.ini)...
     > discovering (using DBMS)...  780 nodes (50 inactive), 800 devices (10 stacks)
     
-    $ netsync var/dns.txt
+    $ netsync.sh var/dns.txt
     > configuring (using etc/netsync.ini)...
     > discovering (using var/dns.txt)...  780 nodes, 800 devices (10 stacks)
-    > identifying (using DBMS)...  670 recognized (2400 conflicts)
+    > identifying (using DBMS)...  670 recognized (4 conflicts)
 
     - OR -
 
-    $ netsync -p2 -D "sw[^.]+|hub[0-9]+" -a
+    $ netsync.sh -p2 -D "sw[^.]+|hub[0-9]+" -a
     > configuring (using etc/netsync.ini)...
     > discovering (using DNS)...  780 nodes (50 inactive), 800 devices (10 stacks)
-    > identifying (using DBMS)...  670 recognized (2400 conflicts)
+    > identifying (using DBMS)...  670 recognized (4 conflicts)
     
     $ netsync.sh -d var/db.csv var/dns.txt
     > configuring (using etc/netsync.ini)...

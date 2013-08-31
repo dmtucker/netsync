@@ -52,9 +52,6 @@ BEGIN {
 sub VERSION_MESSAGE {
     say ((basename $0).' v'.$VERSION);
     say 'Perl v'.$];
-    
-    #vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv#
-    
     say 'DBI v'.$DBI::VERSION;
     say 'File::Basename v'.$File::Basename::VERSION;
     say 'Getopt::Std v'.$Getopt::Std::VERSION;
@@ -72,13 +69,10 @@ sub HELP_MESSAGE {
     my $opts = $options{'options'};
     $opts =~ s/[:]+//g;
     say ((basename $0).' [-'.$opts.'] '.$options{'arguments'});
-    say '  -h          Help. Print usage and options.';
+    say '  -h --help   Help. Print usage and options.';
     say '  -q          Quiet. Print nothing.';
     say '  -v          Verbose. Print everything.';
     say '  -V          Version. Print build information.';
-    
-    #vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv#
-    
     say '  -c .ini     Specify a configuration file to use.';
     say '  -p #        Probe. There are 2 probe levels:';
     say '                  1: Probe the network for active nodes.';
@@ -86,7 +80,7 @@ sub HELP_MESSAGE {
     say '  -D pattern  Use DNS to retrieve a list of hosts matching the pattern.';
     say '  -d .csv     Specify an RFC4180-compliant database file to use.';
     say '  -a          Enable interface auto-matching.';
-    say '  nodes       Specify an RFC1035-compliant network node list to use.';
+    say '  [nodes]     Specify an RFC1035-compliant network node list to use.';
 }
 
 
@@ -99,9 +93,6 @@ INIT {
     $options{'quiet'}   = $opts{'q'} // 0; #/#XXX
     $options{'verbose'} = $opts{'v'} // 0; #/#XXX
     $options{'verbose'} = --$options{'quiet'} if $options{'verbose'} and $options{'quiet'};
-    
-    #vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv#
-    
     $options{'conf_file'} = $opts{'c'} // 'etc/'.(basename $0).'.ini'; #'#XXX
     $options{'probe_level'} = $opts{'p'} // 0; #/#XXX
     unless ($options{'probe_level'} =~ /^[0-2]$/) {
@@ -594,8 +585,8 @@ sub synchronize {
         unless (defined $node) {
             my $device = recognize ($nodes,$serial);
             unless (defined $device) {
-                note ($settings{'DeviceLog'},$serial.' absent');
-                say $serial.' absent' if $options{'verbose'};
+                note ($settings{'DeviceLog'},$serial.' unidentified');
+                say $serial.' unidentified' if $options{'verbose'};
                 next;
             }
             $recognized->{$serial} = $node = $device->{'node'};
@@ -635,8 +626,13 @@ sub synchronize {
                     ++$empty_field_count unless $row->{$field} =~ /[\S]+/;
                 }
                 if ($empty_field_count < @{$settings{'InfoFields'}}) {
-                    ++$new_conflict_count;
-                    push (@{$device->{'conflicts'}{'bogies'}},$row);
+                    if ($options{'probe_level'} > 1) {
+                        my $note = $serial.','.$ifName;
+                        foreach my $field (sort @{$settings{'InfoFields'}}) {
+                            $note .= ','.($row->{$field} // ''); #/#XXX
+                        }
+                        note ($settings{'UnidentifiedCache'},$note,0);
+                    }
                 }
                 else {
                     if ($options{'verbose'}) {
@@ -673,15 +669,6 @@ sub resolve_conflicts {
                         my $ifName = $row->{$settings{'InterfaceField'}};
                         given ($conflict) {
                             my $suffix = $serial.' at '.$ip.' ('.$node->{'hostname'}.').';
-                            when ('bogies') {
-                                if ($options{'probe_level'} > 1) {
-                                    my $note = $row->{$settings{'DeviceField'}}.','.$ifName;
-                                    foreach my $field (sort @{$settings{'InfoFields'}}) {
-                                        $note .= ','.($row->{$field} // ''); #/#XXX
-                                    }
-                                    note ($settings{'ProbeBogies'},$note,0);
-                                }
-                            }
                             default {
                                 alert 'Resolution of an unsupported device conflict ('.$conflict.') has been attempted.';
                             }
@@ -733,14 +720,26 @@ sub resolve_conflicts {
                         delete $interface->{'conflicts'};
                     }
                     else {
-                        note ($settings{'BogeyLog'},$ip.' ('.$node->{'hostname'}.') '.$device->{'serial'}.' '.$ifName);
+                        my $initialized = 0;
+                        unless ($options{'probe_level'} < 2 or $auto) {
+                            say 'An unrecognized interface ('.$ifName.') has been detected on '.$serial.' at '.$ip.' ('.$node->{'hostname'}.') that is not present in the database.';
+                            if (ask 'Would you like to initialize it now?') {
+                                say 'An interface ('.$ifName.') for '.$serial.' on '.$node->{'hostname'}.' is missing information.';
+                                foreach my $field (@{$settings{'InfoFields'}}) {
+                                    print ((' 'x$settings{'Indent'}).$field.': ');
+                                    $interface->{'info'}{$field} = <>;
+                                }
+                                $interface->{'recognized'} = $initialized = 1;
+                            }
+                        }
+                        note ($settings{'UnrecognizedLog'},$ip.' ('.$node->{'hostname'}.') '.$serial.' '.$ifName) unless $initialized;
                     }
                 }
             }
             else {
-                note ($settings{'BogeyLog'},$ip.' ('.$node->{'hostname'}.') '.$device->{'serial'});
-                if ($options{'probe_level'} > 1 and not $auto) {
-                    say 'A new device ('.$device->{'serial'}.') has been detected on '.$node->{'hostname'}.' that is not present in the database.';
+                my $initialized = 0;
+                unless ($options{'probe_level'} < 2 or $auto) {
+                    say 'An unrecognized device ('.$serial.') has been detected at '.$ip.' ('.$node->{'hostname'}.') that is not present in the database.';
                     if (ask 'Would you like to initialize it now?') {
                         foreach my $ifName (sort keys %{$device->{'interfaces'}}) {
                             my $interface = $device->{'interfaces'}{$ifName};
@@ -750,8 +749,10 @@ sub resolve_conflicts {
                                 $interface->{'info'}{$field} = <>;
                             }
                         }
+                        $device->{'recognized'} = $initialized = 1;
                     }
                 }
+                note ($settings{'UnrecognizedLog'},$ip.' ('.$node->{'hostname'}.') '.$serial) unless $initialized;
             }
         }
     }
@@ -809,6 +810,9 @@ sub identify {
         $db->disconnect;
     }
     
+    
+    note ($settings{'UnidentifiedCache'},$fields,0,'>') if $options{'probe_level'} > 1;
+    
     my $conflict_count = 0;
     {
         my %recognized; # $recognized{$serial} == $node
@@ -842,8 +846,9 @@ sub identify {
     
     { # Resolve conflicts.
         my $auto = ($conflict_count > 0);
-        $auto = (not ask 'Do you want to resolve conflicts now?') unless $options{'quiet'} or $conflict_count < 1;
-        note ($settings{'ProbeBogies'},$fields,0,'>') if $options{'probe_level'} > 1;
+        my $question = 'Do you want to resolve conflicts now';
+        $question .= ($conflict_count > 0) ? '?' : ' (if any)?' ;
+        $auto = (not ask $question) unless $options{'quiet'};
         resolve_conflicts ($nodes,$auto);
     }
     
@@ -943,7 +948,7 @@ sub run {
     #                       'devices'  => {
     #                                       $serial => {
     #                                                    'conflicts'  => { # This key exists during the identification stage only.
-    #                                                                      'bogies' => ARRAY,
+    #                                                                      $conflict => ARRAY,
     #                                                                    },
     #                                                    'interfaces' => {
     #                                                                      $ifName => {
@@ -987,21 +992,22 @@ sub run {
     #     This list may then be used as input to netsync to skip synchronization later.
     
     update $nodes;
+    say ((basename $0).' has completed successfully.');
 }
 
 
 { # Read the configuration file.
     say 'configuring (using '.$options{'conf_file'}.')...' unless $options{'quiet'};
     %settings = configure ($options{'conf_file'},{
-        'Indent'      => 4,
-        'NodeOrder'   => 4, # network < 10000 nodes
-        'NodeLog'     => 'var/log/nodes.log',
-        'DeviceLog'   => 'var/log/devices.log',
-        'BogeyLog'    => 'var/log/bogies.log',
-        'UpdateLog'   => 'var/log/updates.log',
-        'Probe1Cache' => 'var/dns.txt',
-        'Probe2Cache' => 'var/db.csv',
-        'ProbeBogies' => 'var/db-bogies.csv',
+        'Indent'            => 4,
+        'NodeOrder'         => 4, # network < 10000 nodes
+        'NodeLog'           => 'var/log/nodes.log',
+        'DeviceLog'         => 'var/log/devices.log',
+        'UnrecognizedLog'   => 'var/log/unrecognized.log',
+        'UpdateLog'         => 'var/log/updates.log',
+        'Probe1Cache'       => 'var/dns.txt',
+        'Probe2Cache'       => 'var/db.csv',
+        'UnidentifiedCache' => 'var/unidentified.csv',
     },1,1,1);
     validate;
 }
