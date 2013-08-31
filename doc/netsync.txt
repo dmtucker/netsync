@@ -305,24 +305,24 @@ See doc/netsync.svg for corresponding visual guidance.
                 [2] 1.3.6.1.2.1.47.1.1.1.1.11 (entPhysicalSerialNum) : device IID to serial
             - proprietary
                 Cisco
-                    [a] 1.3.6.1.4.1.9.5.1.3.1.1.3  (moduleSerialNumber)       : serial
-                    [b] 1.3.6.1.4.1.9.5.1.3.1.1.26 (moduleSerialNumberString) : serial
+                    [a] 1.3.6.1.4.1.9.5.1.3.1.1.3  (moduleSerialNumber)
+                    [b] 1.3.6.1.4.1.9.5.1.3.1.1.26 (moduleSerialNumberString)
                 Brocade
-                    [a] 1.3.6.1.4.1.1991.1.1.1.4.1.1.2 (snChasUnitSerNum) : serial
-                    [b] 1.3.6.1.4.1.1991.1.1.1.1.2     (snChasSerNum)     : serial
+                    [a] 1.3.6.1.4.1.1991.1.1.1.4.1.1.2 (snChasUnitSerNum)
+                    [b] 1.3.6.1.4.1.1991.1.1.1.1.2     (snChasSerNum)
                         Note: This OID does NOT support stacks.
                 HP
-                    [a] 1.3.6.1.4.1.11.2.36.1.1.2.9 (hpHttpMgSerialNumber) : serial
+                    [a] 1.3.6.1.4.1.11.2.36.1.1.2.9 (hpHttpMgSerialNumber)
         
         3. Map interfaces to serials.
             - standard
                 (unsupported)
             - proprietary
                 Cisco
-                    [1]  1.3.6.1.4.1.9.5.1.4.1.1.11 (portIfIndex)              port IID to interface IID
-                    [2]  1.3.6.1.4.1.9.5.1.4.1.1.1  (portModuleIndex)          port IID to module IID
-                    [3a] 1.3.6.1.4.1.9.5.1.3.1.1.3  (moduleSerialNumber)       module IID to serial
-                    [3b] 1.3.6.1.4.1.9.5.1.3.1.1.26 (moduleSerialNumberString) module IID to serial
+                    [1]  1.3.6.1.4.1.9.5.1.4.1.1.11 (portIfIndex)              : port IID to interface IID
+                    [2]  1.3.6.1.4.1.9.5.1.4.1.1.1  (portModuleIndex)          : port IID to module IID
+                    [3a] 1.3.6.1.4.1.9.5.1.3.1.1.3  (moduleSerialNumber)       : module IID to serial
+                    [3b] 1.3.6.1.4.1.9.5.1.3.1.1.26 (moduleSerialNumberString) : module IID to serial
                 Brocade
                     [1] 1.3.6.1.4.1.1991.1.1.3.3.1.1.38 (snSwPortIfIndex)  : port IID to interface IID
                     [2] 1.3.6.1.4.1.1991.1.1.3.3.1.1.39 (snSwPortDescr)    : port IID to U/M/I
@@ -394,7 +394,7 @@ See doc/netsync.svg for corresponding visual guidance.
     There are 3 types of conflicts:
         
         - unidentified interfaces
-            This occurs when netsync fails to find an interface that matches an InterfaceField value on an identified device.
+            This occurs when netsync fails to find an InterfaceField value on an identified device.
             If interface auto-matching is not enabled, the unidentified interface is skipped,
             or if probing (-p) is used and the interface-specific information isn't empty,
             the row is dumped (default: unidentified.csv).
