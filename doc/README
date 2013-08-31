@@ -3,5 +3,3 @@ netsync will produce alerts (default: var/log/alerts.log) for certain, typically
 netsync treats the asset management database as a prescripition for what it finds on the network in a sort of de jure/de facto relationship, respectively. As such, the asset-management database is considered read-only.
 
 Every once in a while (esp. around large network changes), check the NodeLog for entries that say 'no devices found'. These are active devices that do not support any of the OIDs that netsync checks. This is a simple fix in most cases.
-
-Running a level 2 probe in quiet mode (or saying you don't want to resolve conflicts) causes duplicates to be resolved by taking the latest one seen. The logic behind this is that later entries in a database are considered to be more likely to have been added later chronologically.
