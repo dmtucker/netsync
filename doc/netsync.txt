@@ -33,7 +33,7 @@ Table of Contents
 5........Node Processing
 6........Probe Level 1
 7........Identification
-8........Conflicts
+8........Synchronization and Conflicts
 9........Probe Level 2
 10.......Updating
 
@@ -87,18 +87,20 @@ See doc/netsync.svg for corresponding visual guidance.
     
     -Help and Version print information and exit, netsync is not executed in either case.
     -If both Quiet and Verbose mode are used simultaneously, they cancel each other out.
-    -Either -D pattern or nodes must be specified. If neither are present, input will be read from standard input (a pipe or the keyboard).
+    -Either -D pattern or nodes must be specified.
+     If neither are present, input will be read from standard input (a pipe or the keyboard).
     -Interface auto-matching is very likely to be helpful if the database manages interfaces numerically.
-     It causes a database port such as 23 to align with ifNames such as ethernet23 or Gi1/0/23.
+     If enabled, it causes a database port such as 23 to align with ifNames such as ethernet23 or Gi1/0/23.
 
 
 
 
 2 Settings
     
-    A configuration file may be specified using the -c option. Otherwise, a generic configuration file (etc/netsync.ini) is provided,
-    but it does not have enough information for netsync to run out-of-the-box.
-    Namely, the following settings must be provided for a sufficient runtime environment (in the order they are needed):
+    A configuration file may be specified using the -c option.
+    Otherwise, a generic configuration file (etc/netsync.ini) is provided,
+    but it does not have enough information for netsync to be fully functional out-of-the-box.
+    Namely, the following settings must be provided for a sufficient runtime environment:
         
         [DNS]
         domain - a FQDN e.g. example.com
@@ -106,17 +108,20 @@ See doc/netsync.svg for corresponding visual guidance.
         Note: DNS settings are not necessary if only RFC1035-compliant node lists will be used (see [nodes]).
         
         
-        [SNMP] *Although netsync will work out-of-the-box on a network with default SNMP settings, it is not recommended to operate such a network.
-        Version - SNMPv3 is *HIGHLY* suggested.
+        [SNMP]
+        Version - SNMPv3 is HIGHLY suggested.
         
         If using SNMPv2:
         Community - The SNMP community to address (default: public).
         
         If using SNMPv3:
-        SecLevel - If this is left default, there isn't much benefit to using SNMPv3 over v2.
+        SecLevel - (If this is left default, there isn't much benefit to using SNMPv3 over v2.)
         SecName  - username (default: initial)
         AuthPass - the authentication (access) key
         PrivPass - the privacy (encryption) key
+        
+        Note: netsync should work out-of-the-box on a network with default SNMP settings,
+              but it is not recommended to operate a network with such an insecure configuration.
         
         
         [DB]
@@ -132,28 +137,29 @@ See doc/netsync.svg for corresponding visual guidance.
         
         [netsync]
         Table          - the name of the table in the database that contains the following fields
-        DeviceField    - the name of the field that provides a unique ID for each device
-        InterfaceField - the name of the field that holds interface names retrieved via SNMP from the IF-MIB OID 1.3.6.1.2.1.31.1.1.1.1 (ifName)
-        InfoFields     - a comma-separated list of field names containing interface-specific information
+        DeviceField    - the field that provides a unique ID for each device
+        InterfaceField - the field that holds interface names retrieved from the IF-MIB (ifName) via SNMP
+        InfoFields     - a comma-separated list of fields containing interface-specific information
         
-        SyncOID        - The values of InfoFields will be concatenated (respectively) and stored in the device at this OID.
+        SyncOID        - Values from InfoFields will be concatenated (respectively) and stored in the device via SNMP.
         
         Format:
         
                                       Table
             ---------------------------------------------------------
-            |  DeviceField  |  InterfaceField  |  InfoFields...     |            __________
-            ---------------------------------------------------------           |          |
-            |   (serial)    |     (ifName)     |(interface-specific)|   --->    | netsync  |    --->    SyncOID
-            |                          ...                          |           |__________|
-            ---------------------------------------------------------
+            |  DeviceField  |  InterfaceField  |  InfoFields...     |
+            ---------------------------------------------------------                              =============
+            |   (serial)    |     (ifName)     |(interface-specific)|   --->    netsync    --->    || SyncOID ||
+            |                          ...                          |                              =============
+            ---------------------------------------------------------                                    (device)
         
-        Note: Once netsync has aligned an interface in the database with its counterpart on the network, it will overwrite the device with the InfoFields in the database.
+        Note: Once netsync has identified an interface in the database with its corresponding interface on the network,
+              it will overwrite the device with the InfoFields in the database.
     
     
     Non-essential settings:
-    Indent    - a formatting option that is used in verbose mode to specify the number of spaces to proceed details of a previous line
-    NodeOrder - a formatting option that can be used to adapt shown counts to any size network (must be > 0)
+    Indent    - a formatting option to specify the number of spaces to proceed details of a previous line 
+    NodeOrder - a formatting option to adapt discovered node counts to any size network (must be > 0)
     
         Example:
             
@@ -208,8 +214,8 @@ See doc/netsync.svg for corresponding visual guidance.
     
     Structure States:
         node
-                  active : reachable and responsive node
-                inactive : an unreachable or unresponsive node
+                  active : reachable and responsive
+                inactive : unreachable or unresponsive
                 
         device/interface
               recognized : found on the network and in the database
@@ -239,21 +245,25 @@ See doc/netsync.svg for corresponding visual guidance.
         
         2: via [nodes]
             [nodes] is a path to a file containing an RFC1035-compliant list of relevant nodes
-            Note: No pattern is applied to the hosts in the list.
-                  If you have a list that is a superset of the nodes you want to test, option 3 is for you.
+            Note: No pattern is applied to the hosts in the this list.
+                  If you have a list that is a superset of the nodes you want to update/probe, option 3 is for you.
         
         3: via (pipe or keyboard)
             When no input directives are detected, netsync attempts to pull a node list from standard input.
-            This allows pipelining with dig, grep, and other useful command-line utilities for extended functionality.
+            This allows pipelining with dig, grep, and other command-line utilities for extended functionality.
             Example:
+            
                 $ dig axfr example.com | grep hub123 | netsync.sh
+                
                                       -OR-
+                                      
                 $ cat superset.txt | grep hub[0-9]+ | netsync.sh
+    
     
     About RFC1035:
         RFC1035 specifies a satisfactory format for resource records found in a nameserver (see 3.2.1).
         This format is used to produce the output of the popular command-line utility dig.
-        Thus, for clean pipes as described in part 3 above, netsync accepts RFC1035-compliant input.
+        Thus, for simple pipes as described in part 3 above, netsync accepts RFC1035-compliant input.
     
     Note: Only A or AAAA records with valid IPv4 or IPv6 addresses are used.
     
@@ -278,46 +288,46 @@ See doc/netsync.svg for corresponding visual guidance.
     
     
     Altogether the following OIDs are used to accomplish this task:
-        Extract interfaces.
-            Standard
-                1.3.6.1.2.1.2.2.1.3 (ifType) for appropriate interface IID
+        
+        1. Extract interfaces.
+            - standard
+                [1]  1.3.6.1.2.1.2.2.1.3  (ifType)  : appropriate interface IID
                     excluded: other(1), softwareLoopback(24), propVirtual(53)
-                1.3.6.1.2.1.31.1.1.1 (ifName) for interface IID to ifName
-                1.3.6.1.2.1.2.2.1.2 (ifDescr)
-            non-Standard
-                (unsupported)
-        Extract serials.
-            Standard
-                1.3.6.1.2.1.47.1.1.1.1.5 (entPhysicalClass) for appropriate device IID
+                [2a] 1.3.6.1.2.1.31.1.1.1 (ifName)  : interface IID to ifName
+                [2b] 1.3.6.1.2.1.2.2.1.2  (ifDescr) : interface IID to ifDescr
+            - proprietary
+                [unsupported]
+        
+        2. Extract serials.
+            - standard
+                [1] 1.3.6.1.2.1.47.1.1.1.1.5  (entPhysicalClass)     : appropriate device IID
                     included: chassis(3)
-                1.3.6.1.2.1.47.1.1.1.1.11 (entPhysicalSerialNum) for device IID to serial
-            non-Standard
+                [2] 1.3.6.1.2.1.47.1.1.1.1.11 (entPhysicalSerialNum) : device IID to serial
+            - proprietary
                 Cisco
-                    1.3.6.1.4.1.9.5.1.3.1.1.3 (moduleSerialNumber) for serial
-                    1.3.6.1.4.1.9.5.1.3.1.1.26 (moduleSerialNumberString) for serial
+                    [a] 1.3.6.1.4.1.9.5.1.3.1.1.3  (moduleSerialNumber)       : serial
+                    [b] 1.3.6.1.4.1.9.5.1.3.1.1.26 (moduleSerialNumberString) : serial
                 Brocade
-                    1.3.6.1.4.1.1991.1.1.1.4.1.1.2 (snChasUnitSerNum) for serial
-                    1.3.6.1.4.1.1991.1.1.1.1.2 (snChasSerNum) for serial
+                    [a] 1.3.6.1.4.1.1991.1.1.1.4.1.1.2 (snChasUnitSerNum) : serial
+                    [b] 1.3.6.1.4.1.1991.1.1.1.1.2     (snChasSerNum)     : serial
                         Note: This OID does NOT support stacks.
                 HP
-                    1.3.6.1.4.1.11.2.36.1.1.2.9 (hpHttpMgSerialNumber)
-        Map interfaces to serials.
-            Standard
+                    [a] 1.3.6.1.4.1.11.2.36.1.1.2.9 (hpHttpMgSerialNumber) : serial
+        
+        3. Map interfaces to serials.
+            - standard
                 (unsupported)
-            non-Standard
+            - proprietary
                 Cisco
-                    1.3.6.1.4.1.9.5.1.4.1.1.11 (portIfIndex) for port IID to interface IID
-                    1.3.6.1.4.1.9.5.1.4.1.1.1 (portModuleIndex) for port IID to module IID
-                    1.3.6.1.4.1.9.5.1.3.1.1.3 (moduleSerialNumber) for module IID to serial
-                    1.3.6.1.4.1.9.5.1.3.1.1.26 (moduleSerialNumberString)
+                    [1]  1.3.6.1.4.1.9.5.1.4.1.1.11 (portIfIndex)              port IID to interface IID
+                    [2]  1.3.6.1.4.1.9.5.1.4.1.1.1  (portModuleIndex)          port IID to module IID
+                    [3a] 1.3.6.1.4.1.9.5.1.3.1.1.3  (moduleSerialNumber)       module IID to serial
+                    [3b] 1.3.6.1.4.1.9.5.1.3.1.1.26 (moduleSerialNumberString) module IID to serial
                 Brocade
-                    1.3.6.1.4.1.1991.1.1.3.3.1.1.38 (snSwPortIfIndex) for port IID to interface IID
-                    1.3.6.1.4.1.1991.1.1.3.3.1.1.39 (snSwPortDescr) for port IID to U/M/I
+                    [1] 1.3.6.1.4.1.1991.1.1.3.3.1.1.38 (snSwPortIfIndex)  : port IID to interface IID
+                    [2] 1.3.6.1.4.1.1991.1.1.3.3.1.1.39 (snSwPortDescr)    : port IID to U/M/I
                         Note: netsync assumes unit/module/interface (U/M/I) definitively maps unit to module IID.
-                    1.3.6.1.4.1.1991.1.1.1.4.1.1.2 (snChasUnitSerNum) for module IID to serial
-    
-    
-    In Verbose mode, the results of these attempts are printed to the console (instead of only counts).
+                    [3] 1.3.6.1.4.1.1991.1.1.1.4.1.1.2  (snChasUnitSerNum) : module IID to serial
 
 
 
@@ -355,47 +365,51 @@ See doc/netsync.svg for corresponding visual guidance.
             A comma-separated value (.csv) file may be specified using -d.
     
     About RFC4180
-        RFC4180 specifies a simple format for database files.
+        RFC4180 specifies a simple format (CSV) for database files.
         This format is almost universally supported making it useful for importing and exporting data.
-        Thus, for part 2 above, netsync accepts RFC4180-compliant input.
+        Thus, for part 2 above, netsync accepts and produces RFC4180-compliant files.
     
     Note: Since netsync treats the database as read-only,
           it assumes the specified table and fields are already present and populated in the database.
     
     netsync locates the entries of the database on the network.
     If either DeviceField or InterfaceField are empty in a given row, the invalid row is skipped.
-    Every valid row that is examined and its location (if present) are logged in DeviceLog.
-    Devices are located by searching for a row's DeviceField value in its internal representation of the network.
+    Valid rows are synchronized with the network. 
+
+
+
+
+8 Synchronization and Conflicts
+    
+    Any entry that netsync synchronizes is logged in DeviceLog with previously unseen network locations.
+    
+    Devices are located by searching for DeviceField values in its internal representation of the network.
     Rows with unidentified (not found) devices are skipped.
     Entries are then checked for conflicts.
-
-
-
-
-8 Conflicts
     
     Unless netsync is running in Quiet mode, it will ask whether you want to resolve conflicts or not.
-    Answering no is the same as running in quiet mode.
-    Both cases cause conflicts to be resolved automatically.
+    Answering no is the same as running in Quiet mode, both cause conflicts to be resolved automatically.
+    
     
     There are 3 types of conflicts:
         
         - unidentified interfaces
-            This occurs when netsync tries to find an interface for an identified device that matches a row's InterfaceField value.
-            If a direct match is not made and interface auto-matching is not enabled,
-            the unidentified interface is skipped, or if probing (-p) is used and the interface-specific information isn't empty,
-            the row is logged (default: unidentified.csv).
-            If auto-matching is enabled, it causes a database port such as 23 to align with ifNames such as ethernet23 or Gi1/0/23.
+            This occurs when netsync fails to find an interface that matches an InterfaceField value on an identified device.
+            If interface auto-matching is not enabled, the unidentified interface is skipped,
+            or if probing (-p) is used and the interface-specific information isn't empty,
+            the row is dumped (default: unidentified.csv).
             Interface auto-matching is very likely to be helpful if the database manages interfaces numerically.
+            If enabled, it causes a database port such as 23 to align with ifNames such as ethernet23 or Gi1/0/23.
         
         - duplicate entries
             This occurs when more than one entry for the same interface exists in the database.
-            During automatic resolution, the last entry seen is kept.
-            The motivation for this is the idea that entries farther into the file were likely added later chronologically.
+            During automatic resolution, the last entry seen is kept,
+            otherwise netsync will ask which entry to keep.
+            The motivation for this is the idea that entries farther into the file were likely added later.
         
         - unrecognized devices/interfaces
             This occurs when hardware is found on the network but not in the database.
-            If conflicts aren't being automatically resolved and progibng (-p) is used,
+            If conflicts aren't being automatically resolved and probing (-p) is used,
             you will be asked to initialize unrecognized hardware.
             If the unrecognized hardware is not manually initialized, it will be logged in UnrecognizedLog.
 
@@ -423,7 +437,7 @@ See doc/netsync.svg for corresponding visual guidance.
         > discovering (using var/dns.txt)...  780 nodes, 800 devices (10 stacks)
         > identifying (using var/db.csv)...  800 recognized
     
-    Note: No unidentified entries will be present in Probe2Cache; however, all unrecognized hardware will.
+    Note: All unrecognized hardware will be present in Probe2Cache; however, no unidentified entries will.
           Instead, unidentified entries are stored in UnidentifiedCache.
           This is so the output of probe level 2 can serve as a sort of snapshot of the network in time.
 
@@ -432,11 +446,11 @@ See doc/netsync.svg for corresponding visual guidance.
 
 10 Updating
     
-    If probing is not used, netsync attempts to actualize its internal view of the network using SNMP.
+    All modifications made to any device are logged in UpdateLog.
+    
+    If probing is not used, netsync attempts to actualize its internally synchronized network using SNMP.
     This is done by pushing gathered interface-specific information to the devices on the network.
     This information is stored in the device at the specified SyncOID, and is overwritten anytime netsync updates it.
-    
-    All modifications made to any device are logged in UpdateLog.
 
 
 
