@@ -134,13 +134,13 @@ sub validate {
 
 
 sub SNMP_get1 {
-    warn 'too few arguments'  if @_ < 1;
-    warn 'too many arguments' if @_ > 3;
+    warn 'too few arguments'  if @_ < 2;
+    warn 'too many arguments' if @_ > 2;
     my ($oids,$session) = @_;
     
     unless (blessed $session and $session->isa('SNMP::Session')) {
         return undef if ref $session;
-        ($session) = SNMP_Info $session;
+        $session = SNMP $session;
         return undef unless defined $session;
     }
     
@@ -168,7 +168,7 @@ sub device_interfaces {
     warn 'too many arguments' if @_ > 2;
     my ($vendor,$session) = @_;
     
-    my %serial2ifName;
+    my %serial2if2ifName;
     {
         my %if2ifName;
         {
@@ -215,7 +215,9 @@ sub device_interfaces {
                         #['.1.3.6.1.4.1.11.2.36.1.1.5.1.1.10'   => 'hpHttpMgDeviceSerialNumber'], # SEMI-MIB
                         #['.1.3.6.1.4.1.11.2.3.7.11.12.1.1.1.2' => 'snChasSerNum'],               # HP-SN-AGENT-MIB (stackless?)
                     ],$session);
-                    ($serials) = SNMP_get1 ([['.1.3.6.1.2.1.1.4' => 'sysContact']],$session) if @$serials == 1 and $serials->[0] =~ /[^[:ascii:]]/; #XXX
+                    ($serials) = SNMP_get1 ([['.1.3.6.1.2.1.1.4' => 'sysContact']],$session) if defined $serials and
+                                                                                                @$serials == 1   and
+                                                                                                $serials->[0] =~ /[^[:ascii:]]/; #XXX
                 }
                 default {
                     alert 'Serial retrieval attempted on an unsupported device vendor ('.$vendor.')';
@@ -230,77 +232,69 @@ sub device_interfaces {
             return undef;
         }
         if (@serials == 1) {
-            push (@{$serial2ifName{$serials[0]}},$_) foreach values %if2ifName;
+            $serial2if2ifName{$serials[0]} = \%if2ifName;
         }
         else {
-            my %ifName2serial;
+            my %if2serial;
             given ($vendor) {
                 when ('cisco') {
-                    my %if2serial;
+                    my ($port2if) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.11' => 'portIfIndex']],$session); # CISCO-STACK-MIB
+                    my @port2serial;
                     {
-                        my ($port2if) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.11' => 'portIfIndex']],$session); # CISCO-STACK-MIB
-                        my @port2serial;
+                        my ($port2module) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.1'  => 'portModuleIndex']],$session); # CISCO-STACK-MIB
+                        my %module2serial;
                         {
-                            my ($port2module) = SNMP_get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.1'  => 'portModuleIndex']],$session); # CISCO-STACK-MIB
-                            my %module2serial;
-                            {
-                                my ($serials,$modules) = SNMP_get1 ([
-                                    ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # CISCO-STACK-MIB
-                                    ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # CISCO-STACK-MIB
-                                ],$session);
-                                @module2serial{@$modules} = @$serials;
-                            }
-                            push (@port2serial,$module2serial{$_}) foreach @$port2module;
+                            my ($serials,$modules) = SNMP_get1 ([
+                                ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # CISCO-STACK-MIB
+                                ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # CISCO-STACK-MIB
+                            ],$session);
+                            @module2serial{@$modules} = @$serials;
                         }
-                        @if2serial{@$port2if} = @port2serial;
+                        push (@port2serial,$module2serial{$_}) foreach @$port2module;
                     }
-                    $ifName2serial{$if2ifName{$_}} = $if2serial{$_} foreach keys %if2ifName;
+                    @if2serial{@$port2if} = @port2serial;
                 }
                 when ('foundry') {
-                    my %if2serial;
+                    my ($port2if) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.38' => 'snSwPortIfIndex']],$session); # FOUNDRY-SN-SWITCH-GROUP-MIB
+                    my @port2serial;
                     {
-                        my ($port2if) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.38' => 'snSwPortIfIndex']],$session); # FOUNDRY-SN-SWITCH-GROUP-MIB
-                        my @port2serial;
+                        my ($port2umi) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.39' => 'snSwPortDescr']],$session); # FOUNDRY-SN-SWITCH-GROUP-MIB
+                        my %module2serial;
                         {
-                            my ($port2umi) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.39' => 'snSwPortDescr']],$session); # FOUNDRY-SN-SWITCH-GROUP-MIB
-                            my %module2serial;
-                            {
-                                my ($serials,$modules) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum']],$session); # FOUNDRY-SN-AGENT-MIB?
-                                @module2serial{@$modules} = @$serials;
-                            }
-                            foreach (@$port2umi) {
-                                push (@port2serial,$module2serial{$+{'unit'}}) if m{^(?<unit>[0-9]+)(/[0-9]+)+$};
-                            }
+                            my ($serials,$modules) = SNMP_get1 ([['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum']],$session); # FOUNDRY-SN-AGENT-MIB?
+                            @module2serial{@$modules} = @$serials;
                         }
-                        @if2serial{@$port2if} = @port2serial;
+                        foreach (@$port2umi) {
+                            push (@port2serial,$module2serial{$+{'unit'}}) if m{^(?<unit>[0-9]+)(/[0-9]+)+$};
+                        }
                     }
-                    $ifName2serial{$if2ifName{$_}} = $if2serial{$_} foreach keys %if2ifName;
+                    @if2serial{@$port2if} = @port2serial;
                 }
                 default {
                     alert 'Interface mapping attempted on an unsupported device vendor ('.$vendor.')';
                 }
             }
-            foreach my $ifName (keys %ifName2serial) {
-                push (@{$serial2ifName{$ifName2serial{$ifName}}},$ifName) if defined $ifName2serial{$ifName};
+            foreach my $if (keys %if2serial) {
+                $serial2if2ifName{$if2serial{$if}}{$if} = $if2ifName{$if}; #XXX if defined $if2serial{$if};
             }
         }
     }
-    
-    return \%serial2ifName;
+    return \%serial2if2ifName;
 }
 
 
 
 
 sub initialize_interface { #XXX
-    warn 'too few arguments'  if @_ < 2;
-    warn 'too many arguments' if @_ > 3;
-    my ($device,$ifName,$fields) = @_;
+    warn 'too few arguments'  if @_ < 3;
+    warn 'too many arguments' if @_ > 4;
+    my ($device,$ifName,$IID,$fields) = @_;
     $fields //= {}; #/#XXX
     
     $device->{'interfaces'}{$ifName}{'ifName'} = $ifName;
     my $interface = $device->{'interfaces'}{$ifName};
     $interface->{'device'}     = $device;
+    $interface->{'IID'}        = $IID;
     $interface->{'info'}{$_}   = $fields->{$_} foreach keys %$fields;
     $interface->{'recognized'} = (scalar keys %$fields > 0) ? 1 : 0;
     return $interface;
@@ -312,15 +306,15 @@ sub initialize_interface { #XXX
 sub initialize_device {
     warn 'too few arguments'  if @_ < 2;
     warn 'too many arguments' if @_ > 3;
-    my ($node,$serial,$ifNames) = @_;
-    $ifNames //= []; #/#XXX
+    my ($node,$serial,$if2ifNames) = @_;
+    $if2ifNames //= {}; #/#XXX
     
     $serial = uc $serial;
     $node->{'devices'}{$serial}{'serial'} = $serial;
     my $device = $node->{'devices'}{$serial};
     $device->{'node'} = $node;
-    foreach my $ifName (@$ifNames) {
-        initialize_interface ($device,$ifName);
+    foreach my $if (keys %$if2ifNames) {
+        initialize_interface ($device,$if2ifNames->{$if},$if);
     }
     $device->{'recognized'} = 0;
     return $device;
@@ -335,12 +329,12 @@ sub initialize_node {
     my ($node) = @_;
     
     return undef unless defined $node->{'session'} and defined $node->{'info'};
-    my $serial2ifName = device_interfaces ($node->{'info'}->vendor,$node->{'session'});
-    return 0 unless defined $serial2ifName;
+    my $serial2if2ifName = device_interfaces ($node->{'info'}->vendor,$node->{'session'});
+    return 0 unless defined $serial2if2ifName;
     
-    my @serials = keys %$serial2ifName;
+    my @serials = keys %$serial2if2ifName;
     foreach my $serial (@serials) {
-        initialize_device ($node,$serial,$serial2ifName->{$serial});
+        initialize_device ($node,$serial,$serial2if2ifName->{$serial});
     }
     return @serials;
 }
@@ -548,8 +542,8 @@ sub dump_interface {
     my (@interfaces) = @_;
     
     foreach my $interface (@interfaces) {
-        if (defined $interface->{'ifName'} and defined $interface->{'device'} and defined $interface->{'device'}{'node'}) {
-            print $interface->{'ifName'};
+        if ($interface->{'ifName'} // $interface->{'IID'} // $interface->{'device'} // $interface->{'device'}{'node'} // 1) {
+            print $interface->{'ifName'}.' ('.$interface->{'IID'}.')';
             print ' on '.$interface->{'device'}{'serial'};
             print ' at '.$interface->{'device'}{'node'}{'ip'};
             print ' ('.$interface->{'device'}{'node'}{'hostname'}.')';
@@ -880,12 +874,58 @@ sub identify {
 
 
 
+sub SNMP_set {
+    warn 'too few arguments'  if @_ < 4;
+    warn 'too many arguments' if @_ > 4;
+    my ($oid,$IID,$value,$session) = @_;
+    
+    unless (blessed $session and $session->isa('SNMP::Session')) {
+        return undef if ref $session;
+        $session = SNMP $session;
+        return undef unless defined $session;
+    }
+    
+    my $query = SNMP::Varbind->new(['.'.$oid,$IID,$value]);
+    $session->set($query);
+    return (not $session->{'ErrorNum'});
+    
+}
+
+
+
+
 sub update {
     warn 'too few arguments'  if @_ < 1;
     warn 'too many arguments' if @_ > 1;
     my ($nodes) = @_;
     
-    #XXX
+    foreach my $ip (keys %$nodes) {
+        my $node = $nodes->{$ip};
+        foreach my $serial (keys %{$nodes->{'devices'}}) {
+            my $device = $nodes->{'devices'}{$serial};
+            foreach my $ifName (keys %{$device->{'interfaces'}}) {
+                my $interface = $device->{'interfaces'}{$ifName};
+                
+                my $update = '';
+                foreach my $field (keys %{$interface->{'info'}}) {
+                    $update .= $field.' : '.$interface->{'info'}{$field};
+                }
+                
+                my $note = '';
+                $note .= $ip.' ('.$node->{'hostname'}.')';
+                $note .= ' '.$serial;
+                $note .= ' '.$ifName.' ('.$interface->{'IID'}.')';
+                unless (SNMP_set (get_config 'SyncOID',$interface->{'IID'},$update,$node->{'session'})) {
+                    $update =~ s/[\s]+//g;
+                    $update =~ s/[\n]/,/g;
+                    note ($settings{'UpdateLog'},$note.' '.$update);
+                }
+                else {
+                    note ($settings{'UpdateLog'},$note.' error: '.$node->{'session'}{'ErrorStr'});
+                }
+            }
+        }
+    }
 }
 
 
@@ -954,16 +994,19 @@ sub run {
     #                                                                      $ifName => {
     #                                                                                   'conflicts'  => { # This key exists during the identification stage only.
     #                                                                                                     'duplicate' => ARRAY,
-    #                                                                                                   },
+    #                                                                                                   }, # This key is populated during the identification stage only.
     #                                                                                   'device'     => $device,
+    #                                                                                   'ifName'     => $ifName,
+    #                                                                                   'IID'        => SCALAR,
     #                                                                                   'info'       => {
     #                                                                                                     $field => SCALAR,
     #                                                                                                   },
     #                                                                                   'recognized' => SCALAR,
     #                                                                                 },
     #                                                                    },
-    #                                                    'node'       => $node;
-    #                                                    'recognized' => SCALAR;
+    #                                                    'node'       => $node,
+    #                                                    'recognized' => SCALAR,
+    #                                                    'serial'     => $serial,
     #                                                  },
     #                                     },
     #                       'hostname' => SCALAR,
@@ -991,7 +1034,7 @@ sub run {
     #     and it creates an RFC4180-compliant list of them (default: var/db.csv).
     #     This list may then be used as input to netsync to skip synchronization later.
     
-    update $nodes;
+    #update $nodes;
     say ((basename $0).' has completed successfully.');
 }
 
