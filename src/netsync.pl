@@ -1,4 +1,4 @@
-#! /usr/bin/perl
+#!/usr/bin/perl
 
 use autodie;
 use diagnostics;
@@ -8,7 +8,6 @@ use warnings;
 use feature 'say';
 use feature 'switch';
 
-use Data::Dumper; #XXX
 use DBI;
 use File::Basename;
 use Getopt::Std;
@@ -29,11 +28,10 @@ our (%options,%settings,$VERSION);
 
 
 BEGIN {
-    $VERSION = '0.0';
+    $VERSION = '1.0.0';
     $options{'options'}   = 'c:p:D:d:a';
     $options{'arguments'} = '[nodes]';
     
-    $Data::Dumper::Sortkeys = 1; #XXX
     $Getopt::Std::STANDARD_HELP_VERSION = 1;
     $| = 1;
     

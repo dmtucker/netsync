@@ -1,10 +1,10 @@
-#! /bin/bash
+#!/bin/bash
 
-RUN="perl -Isrc/lib"
+PROJECT=netsync
 
 #set -o xtrace
 clear
 find var/log -maxdepth 1 -type f -mmin +360 -delete
-cp src/netsync.pl bin/netsync
-chmod +x bin/netsync
-$RUN bin/netsync $@
+cp src/$PROJECT.pl bin/$PROJECT
+chmod +x bin/$PROJECT
+perl -Isrc/lib bin/$PROJECT $@

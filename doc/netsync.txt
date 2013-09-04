@@ -44,23 +44,35 @@ See doc/netsync.svg for corresponding visual guidance.
 
 0 Invoking netsync
     
-    Being a perl program, netsync may be invoked manually out of the source code directly;
-    however, this is not the suggested method for running netsync for 2 reasons.
-    First, netsync was made to run from the top directory so paths are simpler (e.g. etc/netsync.ini).
-    Running manually requires calling src/netsync or bin/netsync with the appropriate library path (see below).
-    Second, netsync creates extensive log files that should be cleared periodically.
-    netsync is designed to be run regularly, and it can handle its log files automatically.
-    To use this feature, netsync must be invoked by the script included in the top directory (netsync.sh).
-    The script creates an executable copy of the source code in bin/ and runs it with the appropriate libraries.
-    Logs older than 6 hours (adjustable) are automatically erased whenever netsync.sh is run.
+    Suggested Method
+        netsync may be invoked using the top-level script, netsync.sh.
+        The script creates an executable in bin/ and runs it with the appropriate libraries.
+        It also erases logs older than 6 hours (adjustable) automatically.
     
-    Libraries:
-        A generic set of useful packages used by netsync is stored in the Toolbox module in src/lib/.
-        Following is a brief description of each:
-            Toolbox::Configurator  - methods for handling configuration files and default settings
-            Toolbox::FileManager   - methods for handling I/O automatically and efficiently
-            Toolbox::TimeKeeper    - methods for retrieving reliable chronological measurements
-            Toolbox::UserInterface - methods for interacting with the user
+    Perl
+        The Perl implementation may be invoked manually;
+        however, this is not the suggested method for the following reasons:
+            - netsync was made to run from the top directory so paths are simpler (e.g. etc/netsync.ini).
+            - Appropriate libraries must be included at runtime (see below).
+        
+        Libraries:
+            A generic set of useful packages is stored in the Toolbox module in src/lib/.
+            Following is a brief description of each:
+                Toolbox::Configurator  - methods for handling configuration files and default settings
+                Toolbox::FileManager   - methods for handling I/O automatically and efficiently
+                Toolbox::TimeKeeper    - methods for retrieving reliable chronological measurements
+                Toolbox::UserInterface - methods for interacting with the user
+        
+        Manual Build: (optional)
+        $ cp src/netsync.pl bin/netsync
+        $ chmod +x bin/netsync
+        
+        Manual Invocation:
+        $ perl -Isrc/lib bin/netsync
+        
+            - OR -  (if build was skipped)
+        
+        $ perl -Isrc/lib src/netsync.pl
 
 
 
