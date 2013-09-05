@@ -35,15 +35,12 @@ BEGIN {
     $Getopt::Std::STANDARD_HELP_VERSION = 1;
     $| = 1;
     
-    #SNMP::initMib(); #XXX
-    SNMP::loadModules('IF-MIB');
-    SNMP::loadModules('ENTITY-MIB');
-    
-    SNMP::loadModules('CISCO-STACK-MIB');             # Cisco
-    SNMP::loadModules('FOUNDRY-SN-AGENT-MIB');        # Brocade
-    SNMP::loadModules('FOUNDRY-SN-SWITCH-GROUP-MIB'); # Brocade
-    #SNMP::loadModules('HP-SN-AGENT-MIB');             # HP
-    SNMP::loadModules('SEMI-MIB');                    # HP
+    SNMP::addMibDirs('etc/mib');
+    SNMP::loadModules('IF-MIB','ENTITY-MIB');                                # standard
+    SNMP::loadModules('CISCO-STACK-MIB');                                    # Cisco
+    SNMP::loadModules('FOUNDRY-SN-AGENT-MIB','FOUNDRY-SN-SWITCH-GROUP-MIB'); # Brocade
+    SNMP::loadModules('SEMI-MIB'); #XXX,'HP-SN-AGENT-MIB');                  # HP
+    SNMP::initMib();
 }
 
 
