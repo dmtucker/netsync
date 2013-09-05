@@ -28,7 +28,7 @@ our (%options,%settings,$VERSION);
 
 
 BEGIN {
-    $VERSION = '1.0.0';
+    $VERSION = '1.0.1-alpha';
     $options{'options'}   = 'c:p:D:d:a';
     $options{'arguments'} = '[nodes]';
     
