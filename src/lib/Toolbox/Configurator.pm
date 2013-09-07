@@ -4,7 +4,12 @@ package Toolbox::Configurator;
 
 require Exporter;
 @ISA = (Exporter);
-@EXPORT = ('configure','dump_config','get_config','DB','DNS','SNMP','SNMP_Info');
+@EXPORT = (
+            'configure','dump_config','get_config',
+            'DB',
+            'DNS',
+            'SNMP','SNMP_Info','SNMP_get1','SNMP_set',
+          );
 
 use autodie;
 use strict;
@@ -14,10 +19,12 @@ use feature 'say';
 use Config::Simple;
 use File::Basename;
 use Net::DNS;
+use Scalar::Util 'blessed';
 use SNMP;
 use SNMP::Info;
 
 
+our $VERSION = '1.0.0';
 our %config;
 our ($DB,$DNS,$SNMP) = (0,0,0);
 
@@ -246,6 +253,55 @@ sub SNMP_Info {
         'Session'     => $session,
     );
     return ($session,$info);
+}
+
+
+
+
+sub SNMP_get1 {
+    warn 'too few arguments'  if @_ < 2;
+    warn 'too many arguments' if @_ > 2;
+    my ($oids,$session) = @_;
+    
+    unless (blessed $session and $session->isa('SNMP::Session')) {
+        return undef if ref $session;
+        $session = SNMP $session;
+        return undef unless defined $session;
+    }
+    
+    my (@objects,@IIDs);
+    foreach my $oid (@$oids) {
+        my $query = SNMP::Varbind->new([$oid->[0]]);
+        while (my $object = $session->getnext($query)) {
+            last unless $query->tag eq $oid->[1] and not $session->{'ErrorNum'};
+            last if $object =~ /^ENDOFMIBVIEW$/;
+            $object =~ s/^\s*(.*?)\s*$/$1/;
+            push (@IIDs,$query->iid);
+            push (@objects,$object);
+        }
+        last if @objects != 0;
+    }
+    return undef if @objects == 0;
+    return (\@objects,\@IIDs);
+}
+
+
+
+
+sub SNMP_set {
+    warn 'too few arguments'  if @_ < 4;
+    warn 'too many arguments' if @_ > 4;
+    my ($oid,$IID,$value,$session) = @_;
+    
+    unless (blessed $session and $session->isa('SNMP::Session')) {
+        return undef if ref $session;
+        $session = SNMP $session;
+        return undef unless defined $session;
+    }
+    
+    my $query = SNMP::Varbind->new(['.'.$oid,$IID,$value]);
+    $session->set($query);
+    return ($session->{'ErrorNum'}) ? $session->{'ErrorStr'} : 0;
 }
 
 

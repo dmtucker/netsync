@@ -14,6 +14,11 @@ use feature 'say';
 use POSIX;
 
 
+our $VERSION = '1.0.0';
+
+
+
+
 sub ask {
     warn 'too few arguments'  if @_ < 1;
     warn 'too many arguments' if @_ > 1;
@@ -28,6 +33,8 @@ sub ask {
         say 'A decision could not be determined from your response. Try again.';
     }
 }
+
+
 
 
 sub choose {

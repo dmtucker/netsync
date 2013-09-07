@@ -11,6 +11,7 @@ use feature 'say';
 use Toolbox::TimeKeeper;
 
 
+our $VERSION = '1.0.0';
 our %files;
 
 

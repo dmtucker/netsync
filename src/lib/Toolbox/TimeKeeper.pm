@@ -9,6 +9,9 @@ require Exporter;
 use POSIX;
 
 
+our $VERSION = '1.0.0';
+
+
 sub timestamp {
     warn 'too many arguments' if @_ > 0;
     

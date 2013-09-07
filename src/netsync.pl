@@ -11,16 +11,13 @@ use feature 'switch';
 use DBI;
 use File::Basename;
 use Getopt::Std;
-use Net::DNS;
 use POSIX;
 use Regexp::Common;
-use Scalar::Util 'blessed';
-use SNMP;
-use SNMP::Info;
 use Text::CSV;
 
 use Toolbox::Configurator;
 use Toolbox::FileManager;
+use Toolbox::Networker;
 use Toolbox::UserInterface;
 
 
@@ -28,7 +25,7 @@ our (%options,%settings,$VERSION);
 
 
 BEGIN {
-    $VERSION = '1.0.1';
+    $VERSION = '1.0.2';
     $options{'options'}   = 'c:p:D:d:a';
     $options{'arguments'} = '[nodes]';
     
@@ -50,12 +47,8 @@ sub VERSION_MESSAGE {
     say 'DBI v'.$DBI::VERSION;
     say 'File::Basename v'.$File::Basename::VERSION;
     say 'Getopt::Std v'.$Getopt::Std::VERSION;
-    say 'Net::DNS v'.$Net::DNS::VERSION;
     say 'POSIX v'.$POSIX::VERSION;
     say 'Regexp::Common v'.$Regexp::Common::VERSION;
-    say 'Scalar::Util v'.$Scalar::Util::VERSION;
-    say 'SNMP v'.$SNMP::VERSION;
-    say 'SNMP::Info v'.$SNMP::Info::VERSION;
     say 'Text::CSV v'.$Text::CSV::VERSION;
 }
 
@@ -124,36 +117,6 @@ sub validate {
 
 
 ################################################################################
-
-
-
-
-sub SNMP_get1 {
-    warn 'too few arguments'  if @_ < 2;
-    warn 'too many arguments' if @_ > 2;
-    my ($oids,$session) = @_;
-    
-    unless (blessed $session and $session->isa('SNMP::Session')) {
-        return undef if ref $session;
-        $session = SNMP $session;
-        return undef unless defined $session;
-    }
-    
-    my (@objects,@IIDs);
-    foreach my $oid (@$oids) {
-        my $query = SNMP::Varbind->new([$oid->[0]]);
-        while (my $object = $session->getnext($query)) {
-            last unless $query->tag eq $oid->[1] and not $session->{'ErrorNum'};
-            last if $object =~ /^ENDOFMIBVIEW$/;
-            $object =~ s/^\s*(.*?)\s*$/$1/;
-            push (@IIDs,$query->iid);
-            push (@objects,$object);
-        }
-        last if @objects != 0;
-    }
-    return undef if @objects == 0;
-    return (\@objects,\@IIDs);
-}
 
 
 
@@ -277,145 +240,12 @@ sub device_interfaces {
 
 
 
-sub initialize_interface { #XXX
-    warn 'too few arguments'  if @_ < 3;
-    warn 'too many arguments' if @_ > 4;
-    my ($device,$ifName,$IID,$fields) = @_;
-    $fields //= {}; #/#XXX
-    
-    $device->{'interfaces'}{$ifName}{'ifName'} = $ifName;
-    my $interface = $device->{'interfaces'}{$ifName};
-    $interface->{'device'}     = $device;
-    $interface->{'IID'}        = $IID;
-    $interface->{'info'}{$_}   = $fields->{$_} foreach keys %$fields;
-    $interface->{'recognized'} = (scalar keys %$fields > 0) ? 1 : 0;
-    return $interface;
-}
-
-
-
-
-sub initialize_device {
-    warn 'too few arguments'  if @_ < 2;
-    warn 'too many arguments' if @_ > 3;
-    my ($node,$serial,$if2ifNames) = @_;
-    $if2ifNames //= {}; #/#XXX
-    
-    $serial = uc $serial;
-    $node->{'devices'}{$serial}{'serial'} = $serial;
-    my $device = $node->{'devices'}{$serial};
-    $device->{'node'} = $node;
-    foreach my $if (keys %$if2ifNames) {
-        initialize_interface ($device,$if2ifNames->{$if},$if);
-    }
-    $device->{'recognized'} = 0;
-    return $device;
-}
-
-
-
-
-sub initialize_node {
-    warn 'too few arguments'  if @_ < 1;
-    warn 'too many arguments' if @_ > 1;
-    my ($node) = @_;
-    
-    return undef unless defined $node->{'session'} and defined $node->{'info'};
-    my $serial2if2ifName = device_interfaces ($node->{'info'}->vendor,$node->{'session'});
-    return 0 unless defined $serial2if2ifName;
-    
-    my @serials = keys %$serial2if2ifName;
-    foreach my $serial (@serials) {
-        initialize_device ($node,$serial,$serial2if2ifName->{$serial});
-    }
-    return @serials;
-
-
-
-
-
-sub node_string {
-    warn 'too few arguments' if @_ < 1;
-    my (@nodes) = @_;
-    
-    my @node_strings;
-    foreach my $node (@nodes) {
-        my $node_string;
-        if (defined $node->{'ip'} and defined $node->{'hostname'}) {
-            $node_string = $node->{'ip'}.' ('.$node->{'hostname'}.')';
-        }
-        else {
-            alert 'A malformed node has been detected.';
-        }
-        push (@node_strings,$node_string);
-    }
-    return $node_strings[0] if @node_strings == 1;
-    return @node_strings;
-}}
-
-
-
-
-sub node_dump {
-    warn 'too few arguments' if @_ < 1;
-    my (@nodes) = @_;
-    
-    foreach my $node (@nodes) {
-        say node_string $node;
-        
-        my $device_count = 0;
-        if (defined $node->{'devices'}) {
-            $device_count = scalar keys %{$node->{'devices'}};
-            
-            my ($recognized_device_count,$interface_count,$recognized_interface_count) = (0,0,0);
-            foreach my $serial (keys %{$node->{'devices'}}) {
-                my $device = $node->{'devices'}{$serial};
-                ++$recognized_device_count if $device->{'recognized'};
-                next unless defined $device->{'interfaces'};
-                $interface_count += scalar keys %{$device->{'interfaces'}};
-                foreach my $ifName (keys %{$device->{'interfaces'}}) {
-                    my $interface = $device->{'interfaces'}{$ifName};
-                    ++$recognized_interface_count if $interface->{'recognized'};
-                }
-            }
-            print ((' 'x$settings{'Indent'}).$device_count.' device');
-            print 's' if $device_count > 1;
-            print ' ('.$recognized_device_count.' recognized)' if $recognized_device_count > 0;
-            print "\n";
-            print ((' 'x$settings{'Indent'}).$interface_count.' interface');
-            print 's' if $interface_count > 1;
-            print ' ('.$recognized_interface_count.' recognized)' if $recognized_interface_count > 0;
-            print "\n";
-        }
-        else {
-            alert 'A deviceless node ('.$node->{'hostname'}.') has been detected.';
-        }
-        
-        if (defined $node->{'info'}) {
-            my $info = $node->{'info'};
-            if ($device_count == 1) {
-                #say ((' 'x$settings{'Indent'}).$info->class); #XXX
-                say ((' 'x$settings{'Indent'}).$info->vendor.' '.$info->model);
-                say ((' 'x$settings{'Indent'}).$info->serial);
-            }
-        }
-        else {
-            alert 'An informationless node ('.$node->{'hostname'}.') has been detected.';
-        }
-    }
-    say scalar (@nodes).' nodes' if @nodes > 1;
-}
-
-
-
-
 sub probe {
     warn 'too few arguments' if @_ < 1;
     my (@nodes) = @_;
     
     my $serial_count = 0;
     foreach my $node (@nodes) {
-        my $note = $node->{'ip'}.' ('.$node->{'hostname'}.')';
         
         my ($session,$info) = SNMP_Info $node->{'ip'};
         if (defined $info) {
@@ -423,16 +253,23 @@ sub probe {
             $node->{'info'}    = $info;
         }
         else {
-            note ($settings{'NodeLog'},$note.' inactive');
-            say $note.' inactive' if $options{'verbose'};
+            note ($settings{'NodeLog'},node_string ($node).' inactive');
+            say node_string ($node).' inactive' if $options{'verbose'};
             next;
         }
         
         { # Process a newly discovered node.
-            my @serials = initialize_node $node;
-            note ($settings{'NodeLog'},$note.' no devices detected') and next unless @serials > 0;
-            note ($settings{'NodeLog'},$note.' '.join (' ',@serials));
-            $serial_count += @serials;
+            my $serial2if2ifName = device_interfaces ($node->{'info'}->vendor,$node->{'session'});
+            if (defined $serial2if2ifName) {
+                my @serials = keys %$serial2if2ifName;
+                note ($settings{'NodeLog'},node_string ($node).' '.join (' ',@serials));
+                initialize_node ($node,$serial2if2ifName);
+                $serial_count += @serials;
+            }
+            else {
+                note ($settings{'NodeLog'},node_string ($node).' no devices detected');
+                next;
+            }
         }
         
         node_dump $node if $options{'verbose'};
@@ -528,97 +365,6 @@ sub discover {
 
 
 
-sub recognize {
-    warn 'too few arguments'  if @_ < 2;
-    warn 'too many arguments' if @_ > 2;
-    my ($nodes,$serial) = @_;
-    $serial = uc $serial;
-    
-    my $recognition;
-    foreach my $ip (keys %$nodes) {
-        my $node = $nodes->{$ip};
-        if (defined $node->{'devices'}{$serial}) {
-            my $device = $node->{'devices'}{$serial};
-            $device->{'recognized'} = 1;
-            $recognition = $device;
-            last;
-        }
-    }
-    return $recognition;
-}
-
-
-
-
-sub device_string {
-    warn 'too few arguments' if @_ < 1;
-    my (@devices) = @_;
-    
-    my @device_strings;
-    foreach my $device (@devices) {
-        my $device_string;
-        if (defined $device->{'serial'} and defined $device->{'node'}) {
-            $device_string = $device->{'serial'}.' at '.node_string $device->{'node'};
-        }
-        else {
-            alert 'A malformed device has been detected.';
-        }
-        push (@device_strings,$device_string);
-    }
-    return $device_strings[0] if @device_strings == 1;
-    return @device_strings;
-}
-
-
-
-
-sub interface_string {
-    warn 'too few arguments' if @_ < 1;
-    my (@interfaces) = @_;
-    
-    my @interface_strings;
-    foreach my $interface (@interfaces) {
-        my $interface_string;
-        if ($interface->{'ifName'} // $interface->{'IID'} // $interface->{'device'} // 1) { #/#XXX
-            $interface_string  = $interface->{'ifName'}.' ('.$interface->{'IID'}.')';
-            $interface_string .= ' on '.device_string $interface->{'device'};
-        }
-        else {
-            alert 'A malformed interface has been detected.'
-        }
-        push (@interface_strings,$interface_string);
-    }
-    return $interface_strings[0] if @interface_strings == 1;
-    return @interface_strings;
-}
-
-
-
-
-sub interface_dump {
-    warn 'too few arguments' if @_ < 1;
-    my (@interfaces) = @_;
-    
-    foreach my $interface (@interfaces) {
-        say interface_string $interface;
-        
-        if (defined $interface->{'recognized'}) {
-            say ((' 'x$settings{'Indent'}).(($interface->{'recognized'}) ? 'recognized' : 'unrecognized'));
-        }
-        
-        if (defined $interface->{'info'}) {
-            foreach my $field (sort keys %{$interface->{'info'}}) {
-                print ((' 'x$settings{'Indent'}).$field.': ');
-                say (($interface->{'info'}{$field} =~ /[\S]+/) ? $interface->{'info'}{$field} : '(empty)');
-            }
-        }
-    }
-    say scalar (@interfaces).' interfaces' if @interfaces > 1;
-}
-
-
-
-
 sub synchronize {
     warn 'too few arguments' if @_ < 3;
     my ($nodes,$recognized,@rows) = @_;
@@ -630,7 +376,7 @@ sub synchronize {
         
         my $node = $recognized->{$serial};
         unless (defined $node) {
-            my $device = recognize ($nodes,$serial);
+            my $device = recognize_device ($nodes,$serial);
             unless (defined $device) {
                 note ($settings{'DeviceLog'},$serial.' unidentified');
                 say $serial.' unidentified' if $options{'verbose'};
@@ -928,25 +674,6 @@ sub identify {
 
 
 
-sub SNMP_set {
-    warn 'too few arguments'  if @_ < 4;
-    warn 'too many arguments' if @_ > 4;
-    my ($oid,$IID,$value,$session) = @_;
-    
-    unless (blessed $session and $session->isa('SNMP::Session')) {
-        return undef if ref $session;
-        $session = SNMP $session;
-        return undef unless defined $session;
-    }
-    
-    my $query = SNMP::Varbind->new(['.'.$oid,$IID,$value]);
-    $session->set($query);
-    return ($session->{'ErrorNum'}) ? $session->{'ErrorStr'} : 0;
-}
-
-
-
-
 sub update {
     warn 'too few arguments'  if @_ < 1;
     warn 'too many arguments' if @_ > 1;
@@ -1001,7 +728,7 @@ sub update {
                     ++$failed_update_count;
                     
                     if ($options{'verbose'}) {
-                        say interface_string $interface.' failed';
+                        say interface_string ($interface).' failed';
                         say ((' 'x$settings{'Indent'}).$error);
                     }
                 }
@@ -1015,40 +742,6 @@ sub update {
         print ' ('.$failed_update_count.' failed)' if $failed_update_count > 0;
         print "\n";
     }
-}
-
-
-
-
-################################################################################
-
-
-
-
-sub device_dump {
-    warn 'too few arguments' if @_ < 1;
-    my (@devices) = @_;
-    
-    foreach my $device (@devices) {
-        say device_string $device;
-        
-        if (defined $device->{'recognized'}) {
-            say ((' 'x$settings{'Indent'}).(($device->{'recognized'}) ? 'recognized' : 'unrecognized'));
-        }
-        
-        if (defined $device->{'interfaces'}) {
-            my $interface_count = scalar keys %{$device->{'interfaces'}};
-            my $recognized_interface_count = 0;
-            foreach my $ifName (keys %{$device->{'interfaces'}}) {
-                my $interface = $device->{'interfaces'}{$ifName};
-                ++$recognized_interface_count if $interface->{'recognized'};
-            }
-            print ((' 'x$settings{'Indent'}).$interface_count.' interface');
-            print 's' if $interface_count > 1;
-            say ' ('.$recognized_interface_count.' recognized)';
-        }
-    }
-    say scalar (@devices).' devices' if @devices > 1;
 }
 
 
