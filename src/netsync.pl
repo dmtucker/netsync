@@ -349,23 +349,19 @@ sub node_string {
         }
         push (@node_strings,$node_string);
     }
+    return $node_strings[0] if @node_strings == 1;
     return @node_strings;
 }}
 
 
 
 
-sub dump_node {
+sub node_dump {
     warn 'too few arguments' if @_ < 1;
     my (@nodes) = @_;
     
     foreach my $node (@nodes) {
-        if (defined $node->{'ip'} and defined $node->{'hostname'}) {
-            say node_string $node;
-        }
-        else {
-            alert 'A malformed node has been detected.';
-        }
+        say node_string $node;
         
         my $device_count = 0;
         if (defined $node->{'devices'}) {
@@ -439,7 +435,7 @@ sub probe {
             $serial_count += @serials;
         }
         
-        dump_node $node if $options{'verbose'};
+        node_dump $node if $options{'verbose'};
     }
     return $serial_count;
 }
@@ -554,6 +550,28 @@ sub recognize {
 
 
 
+sub device_string {
+    warn 'too few arguments' if @_ < 1;
+    my (@devices) = @_;
+    
+    my @device_strings;
+    foreach my $device (@devices) {
+        my $device_string;
+        if (defined $device->{'serial'} and defined $device->{'node'}) {
+            $device_string = $device->{'serial'}.' at '.node_string $device->{'node'};
+        }
+        else {
+            alert 'A malformed device has been detected.';
+        }
+        push (@device_strings,$device_string);
+    }
+    return $device_strings[0] if @device_strings == 1;
+    return @device_strings;
+}
+
+
+
+
 sub interface_string {
     warn 'too few arguments' if @_ < 1;
     my (@interfaces) = @_;
@@ -561,7 +579,7 @@ sub interface_string {
     my @interface_strings;
     foreach my $interface (@interfaces) {
         my $interface_string;
-        if ($interface->{'ifName'} // $interface->{'IID'} // $interface->{'device'} // $interface->{'device'}{'node'} // 1) {
+        if ($interface->{'ifName'} // $interface->{'IID'} // $interface->{'device'} // 1) { #/#XXX
             $interface_string  = $interface->{'ifName'}.' ('.$interface->{'IID'}.')';
             $interface_string .= ' on '.device_string $interface->{'device'};
         }
@@ -570,25 +588,23 @@ sub interface_string {
         }
         push (@interface_strings,$interface_string);
     }
+    return $interface_strings[0] if @interface_strings == 1;
     return @interface_strings;
 }
 
 
 
 
-sub dump_interface {
+sub interface_dump {
     warn 'too few arguments' if @_ < 1;
     my (@interfaces) = @_;
     
     foreach my $interface (@interfaces) {
-        if ($interface->{'ifName'} // $interface->{'IID'} // $interface->{'device'} // $interface->{'device'}{'node'} // 1) {
-            say interface_string $interface;
-        }
-        else {
-            alert 'A malformed interface has been detected.'
-        }
+        say interface_string $interface;
         
-        print "\n"; #say ' ('.(($interface->{'recognized'}) ? 'recognized' : 'unrecognized').')' if defined $interface->{'recognized'}; #XXX
+        if (defined $interface->{'recognized'}) {
+            say ((' 'x$settings{'Indent'}).(($interface->{'recognized'}) ? 'recognized' : 'unrecognized'));
+        }
         
         if (defined $interface->{'info'}) {
             foreach my $field (sort keys %{$interface->{'info'}}) {
@@ -648,7 +664,7 @@ sub synchronize {
                         $interface->{'info'}{$field} = $row->{$field};
                     }
                     
-                    dump_interface $interface if $options{'verbose'};
+                    interface_dump $interface if $options{'verbose'};
                 }
             }
             else {
@@ -972,7 +988,7 @@ sub update {
                     
                     unless ($options{'quiet'}) {
                         if ($options{'verbose'}) {
-                            dump_interface $interface;
+                            interface_dump $interface;
                         }
                         else {
                             print  "\b"x$settings{'NodeOrder'};
@@ -1009,40 +1025,16 @@ sub update {
 
 
 
-sub device_string {
-    warn 'too few arguments' if @_ < 1;
-    my (@devices) = @_;
-    
-    my @device_strings;
-    foreach my $device (@devices) {
-        my $device_string;
-        if (defined $device->{'serial'} and defined $device->{'node'}) {
-            $device_string = $device->{'serial'}.' at '.node_string $device->{'node'};
-        }
-        else {
-            alert 'A malformed device has been detected.';
-        }
-        push (@device_strings,$device_string);
-    }
-    return @device_strings;
-}
-
-
-
-
 sub device_dump {
     warn 'too few arguments' if @_ < 1;
     my (@devices) = @_;
     
     foreach my $device (@devices) {
-        if (defined $device->{'serial'} and defined $device->{'node'}) {
-            say device_string $device;
-        }
-        else {
-            alert 'A malformed device has been detected.';
-        }
+        say device_string $device;
         
-        print "\n"; #say ' - '.($device->{'recognized'}) ? 'recognized' : 'unrecognized' if defined $device->{'recognized'}; #XXX
+        if (defined $device->{'recognized'}) {
+            say ((' 'x$settings{'Indent'}).(($device->{'recognized'}) ? 'recognized' : 'unrecognized'));
+        }
         
         if (defined $device->{'interfaces'}) {
             my $interface_count = scalar keys %{$device->{'interfaces'}};
