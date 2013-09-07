@@ -25,7 +25,7 @@ our (%options,%settings,$VERSION);
 
 
 BEGIN {
-    $VERSION = '1.0.2';
+    $VERSION = '1.1.0-alpha';
     $options{'options'}   = 'c:p:D:d:a';
     $options{'arguments'} = '[nodes]';
     
@@ -230,7 +230,7 @@ sub device_interfaces {
                 }
             }
             foreach my $if (keys %if2serial) {
-                $serial2if2ifName{$if2serial{$if}}{$if} = $if2ifName{$if}; #XXX if defined $if2serial{$if};
+                $serial2if2ifName{$if2serial{$if}}{$if} = $if2ifName{$if};
             }
         }
     }
@@ -342,13 +342,13 @@ sub discover {
         my $node_count = scalar keys %$nodes;
         print $node_count if $options{'verbose'};
         print ' node';
-        print 's' if $node_count > 1;
+        print 's' if $node_count != 1;
         print ' ('.$inactive_node_count.' inactive)' if $inactive_node_count > 0;
         print ', '.$deployed_device_count.' device';
-        print 's' if $deployed_device_count > 1;
+        print 's' if $deployed_device_count != 1;
         if ($stack_count > 0) {
             print ' ('.$stack_count.' stack';
-            print 's' if $stack_count > 1;
+            print 's' if $stack_count != 1;
             print ')';
         }
         print "\n";
