@@ -696,16 +696,19 @@ sub update {
                 next unless $interface->{'recognized'};
                 
                 my $update = '';
+                my $empty = 1;
                 foreach my $field (keys %{$interface->{'info'}}) {
-                    $update .= "\n" unless $update eq '';
-                    $update .= $field.' : '.$interface->{'info'}{$field};
+                    $update .= "," unless $update eq '';
+                    $update .= $field.':'.$interface->{'info'}{$field};
+                    $empty = 0 if defined $interface->{'info'}{$field} and $interface->{'info'}{$field} =~ /[\S]+/;
                 }
+                $update = '' if $empty;
                 
                 my $note = '';
                 $note .= $ip.' ('.$node->{'hostname'}.')';
                 $note .= ' '.$serial;
                 $note .= ' '.$ifName.' ('.$interface->{'IID'}.')';
-                my $error = SNMP_set (get_config 'netsync.SyncOID',$interface->{'IID'},$update,$node->{'session'});
+                my $error = SNMP_set (get_config ('netsync.SyncOID'),$interface->{'IID'},$update,$node->{'session'});
                 unless ($error) {
                     $update =~ s/[\n]/,/g;
                     $update =~ s/[\s]+//g;

@@ -299,7 +299,7 @@ sub SNMP_set {
         return undef unless defined $session;
     }
     
-    my $query = SNMP::Varbind->new(['.'.$oid,$IID,$value]);
+    my $query = SNMP::Varbind->new([$oid,$IID,$value]);
     $session->set($query);
     return ($session->{'ErrorNum'}) ? $session->{'ErrorStr'} : 0;
 }
