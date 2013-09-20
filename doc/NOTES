@@ -1,3 +1,15 @@
+         _             _          _          _      _        _          _              _     
+        /\ \     _    /\ \       /\ \       / /\   /\ \     /\_\       /\ \     _    /\ \    
+       /  \ \   /\_\ /  \ \      \_\ \     / /  \  \ \ \   / / /      /  \ \   /\_\ /  \ \   
+      / /\ \ \_/ / // /\ \ \     /\__ \   / / /\ \__\ \ \_/ / /      / /\ \ \_/ / // /\ \ \  
+     / / /\ \___/ // / /\ \_\   / /_ \ \ / / /\ \___\\ \___/ /      / / /\ \___/ // / /\ \ \ 
+    / / /  \/____// /_/_ \/_/  / / /\ \ \\ \ \ \/___/ \ \ \_/      / / /  \/____// / /  \ \_\
+   / / /    / / // /____/\    / / /  \/_/ \ \ \        \ \ \      / / /    / / // / /    \/_/
+  / / /    / / // /\____\/   / / /    _    \ \ \        \ \ \    / / /    / / // / /         
+ / / /    / / // / /______  / / /    /_/\__/ / /         \ \ \  / / /    / / // / /________  
+/ / /    / / // / /_______\/_/ /     \ \/___/ /           \ \_\/ / /    / / // / /_________\ 
+\/_/     \/_/ \/__________/\_\/       \_____\/             \/_/\/_/     \/_/ \/____________/ 
+
 netsync will produce alerts (default: var/log/alerts.log) for certain, typically fixable conditions that are detected.
 
 netsync treats the asset management database as a prescripition for what it finds on the network in a sort of de jure/de facto relationship, respectively. As such, the asset-management database is considered read-only.
