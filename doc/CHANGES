@@ -1,7 +1,32 @@
-2013-09-03 : 1.0.0 : IPO (Blackberry Abalone)
-2013-09-06 : 1.0.1 : minor dependency removals & major bug fixes
-2013-09-06 : 1.0.2 : code restructure and patch for 1.0.1 which was unusable
-2013-09-20 : 1.0.3 : update bug fixes
-2013-09-20 : 1.1.0 : POD (Pea Abalone)
-2013-09-27 : 1.2.0 : run reports, vendor (-v) & update (-u) options (Kiwi Abalone)
-2013-10-05 : 1.3.0 : installer (Apple Abalone)
+2013-09-03 : 1.0.0 : Blackberry Abalone
+
+2013-09-06 : 1.0.1
+    - minor dependency removals & major bug fixes
+
+2013-09-06 : 1.0.2
+    - code restructure and patch for 1.0.1 which was unusable
+
+2013-09-20 : 1.0.3
+    - update bug fixes
+
+2013-09-20 : 1.1.0 : Pea Abalone
+    - POD support
+
+2013-09-23 : 2.0.0 : Kiwi Oyster
+    - improvements to corner-case handling
+    - README.md replaced by README.html
+    - directory restructure for better conventional FHS support
+    - Netsync is now an API.
+    - installer
+
+2013-10-03 : 2.0.1
+    - netsync API documented
+    - proper MIB dependencies documented
+
+2013-10-05 : 2.1.0 : Banana Oyster
+    - new options: -v, -u, -m
+    - removed options: -D
+    - modified parameters: [nodes[ ...]]
+
+2013-10-10 : 2.2.0 : Raspberry Oyster
+    - run reports
