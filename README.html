@@ -1,0 +1,929 @@
+<?xml version="1.0" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>netsync - network/database utility</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body style="background-color: white">
+
+
+<!-- INDEX BEGIN -->
+<div name="index">
+<p><a name="__index__"></a></p>
+
+<ul>
+
+	<li><a href="#name">NAME</a></li>
+	<li><a href="#synopsis">SYNOPSIS</a></li>
+	<li><a href="#description">DESCRIPTION</a></li>
+	<ul>
+
+		<li><a href="#overview">Overview</a></li>
+		<li><a href="#0_invocation">0 Invocation</a></li>
+		<ul>
+
+			<li><a href="#suggested_method">Suggested Method</a></li>
+			<li><a href="#perl">Perl</a></li>
+			<ul>
+
+				<li><a href="#libraries">Libraries</a></li>
+				<li><a href="#manual_invocation">Manual Invocation</a></li>
+			</ul>
+
+		</ul>
+
+		<li><a href="#1_runtime_configuration">1 Runtime Configuration</a></li>
+		<ul>
+
+			<li><a href="#options">Options</a></li>
+			<ul>
+
+				<li><a href="#_h___help">-h -help</a></li>
+				<li><a href="#_v">-V</a></li>
+				<li><a href="#_v">-v</a></li>
+				<li><a href="#_q">-q</a></li>
+				<li><a href="#_c__ini">-c .ini</a></li>
+				<li><a href="#_p__">-p #</a></li>
+				<li><a href="#_d_pattern">-D pattern</a></li>
+				<li><a href="#_d__csv">-d .csv</a></li>
+				<li><a href="#_a">-a</a></li>
+			</ul>
+
+			<li><a href="#parameters">Parameters</a></li>
+			<ul>
+
+				<li><a href="#_nodes_">[nodes]</a></li>
+			</ul>
+
+		</ul>
+
+		<li><a href="#2_settings">2 Settings</a></li>
+		<ul>
+
+			<li><a href="#dns">DNS</a></li>
+			<ul>
+
+				<li><a href="#domain">domain</a></li>
+			</ul>
+
+			<li><a href="#snmp">SNMP</a></li>
+			<ul>
+
+				<li><a href="#version">Version</a></li>
+			</ul>
+
+			<li><a href="#db">DB</a></li>
+			<ul>
+
+				<li><a href="#dbms">DBMS</a></li>
+				<li><a href="#server">Server</a></li>
+				<li><a href="#port">Port</a></li>
+				<li><a href="#database">Database</a></li>
+				<li><a href="#dsn">DSN</a></li>
+				<li><a href="#username">Username</a></li>
+				<li><a href="#password">Password</a></li>
+			</ul>
+
+			<li><a href="#netsync">netsync</a></li>
+			<ul>
+
+				<li><a href="#table">Table</a></li>
+				<li><a href="#devicefield">DeviceField</a></li>
+				<li><a href="#interfacefield">InterfaceField</a></li>
+				<li><a href="#infofields">InfoFields</a></li>
+				<li><a href="#syncoid">SyncOID</a></li>
+			</ul>
+
+			<li><a href="#optional">Optional</a></li>
+			<ul>
+
+				<li><a href="#indent">Indent</a></li>
+				<li><a href="#nodeorder">NodeOrder</a></li>
+				<li><a href="#mibdir">MIBdir</a></li>
+			</ul>
+
+		</ul>
+
+		<li><a href="#3_data_structures">3 Data Structures</a></li>
+		<ul>
+
+			<li><a href="#states">States</a></li>
+			<ul>
+
+				<li><a href="#nodes">Nodes</a></li>
+				<li><a href="#devices___interfaces">Devices &amp; Interfaces</a></li>
+			</ul>
+
+		</ul>
+
+		<li><a href="#4_discovery">4 Discovery</a></li>
+		<ul>
+
+			<li><a href="#using__d_pattern">using -D pattern</a></li>
+			<li><a href="#using__nodes_">using [nodes]</a></li>
+			<ul>
+
+				<li><a href="#about_rfc1035">About <a href="http://www.ietf.org/rfc/rfc1035.txt" class="rfc">RFC1035</a></a></li>
+			</ul>
+
+			<li><a href="#using__pipe_or_keyboard_">using (pipe or keyboard)</a></li>
+		</ul>
+
+		<li><a href="#5_node_processing">5 Node Processing</a></li>
+		<ul>
+
+			<li><a href="#supported_node_vendors">Supported Node Vendors</a></li>
+			<li><a href="#supported_stack_vendors">Supported Stack Vendors</a></li>
+			<li><a href="#mapping_process">Mapping Process</a></li>
+		</ul>
+
+		<li><a href="#6_probe_level_1">6 Probe Level 1</a></li>
+		<li><a href="#7_identification">7 Identification</a></li>
+		<ul>
+
+			<li><a href="#using_dbms__recommended_">using DBMS (recommended)</a></li>
+			<li><a href="#using__d__csv">using -d .csv</a></li>
+			<ul>
+
+				<li><a href="#about_rfc4180">About <a href="http://www.ietf.org/rfc/rfc4180.txt" class="rfc">RFC4180</a></a></li>
+			</ul>
+
+		</ul>
+
+		<li><a href="#8_synchronization_and_conflicts">8 Synchronization and Conflicts</a></li>
+		<ul>
+
+			<li><a href="#unidentified_interfaces">Unidentified Interfaces</a></li>
+			<li><a href="#duplicate_entries">Duplicate Entries</a></li>
+			<li><a href="#unrecognized_devices___interfaces">Unrecognized Devices &amp; Interfaces</a></li>
+		</ul>
+
+		<li><a href="#9_probe_level_2">9 Probe Level 2</a></li>
+		<li><a href="#10_updating">10 Updating</a></li>
+	</ul>
+
+	<li><a href="#examples">EXAMPLES</a></li>
+	<li><a href="#author">AUTHOR</a></li>
+	<li><a href="#license">LICENSE</a></li>
+</ul>
+
+<hr name="index" />
+</div>
+<!-- INDEX END -->
+
+<p>
+</p>
+<h1><a name="name">NAME</a></h1>
+<p>netsync - network/database utility</p>
+<p>
+</p>
+<hr />
+<h1><a name="synopsis">SYNOPSIS</a></h1>
+<p><code>netsync [-hVvqcpDda] [nodes]</code></p>
+<p>
+</p>
+<hr />
+<h1><a name="description">DESCRIPTION</a></h1>
+<p>netsync is a network synchronization tool that:</p>
+<pre>
+ - maps network interfaces to their respective (potentially stacked) devices&gt;
+ - gathers interface-specific information from an asset management database&gt;
+ - sends the information it gathers to each device&gt;</pre>
+<p>Note: All communication with network nodes is done using SNMP,
+      and the database is assumed to track devices by serial number.</p>
+<p>netsync also provides ways of producing useful information about the network.</p>
+<p>
+</p>
+<h2><a name="overview">Overview</a></h2>
+<p>Execution begins with the parsing of the configuration file (-c).
+netsync discovers active network devices listed in [nodes] or DNS.
+It uses gathered information to identify each device in a provided database.
+Identified devices are then updated unless probing is used.</p>
+<p>See <em class="file">/usr/share/netsync/netsync.svg</em> for corresponding visual guidance.</p>
+<p>
+</p>
+<h2><a name="0_invocation">0 Invocation</a></h2>
+<p>
+</p>
+<h3><a name="suggested_method">Suggested Method</a></h3>
+<p>netsync may be installed and removed using the same provided script, <em class="file">netsync.sh</em>.</p>
+<pre>
+ $ netsync.sh install</pre>
+<p></p>
+<pre>
+ $ netsync.sh remove</pre>
+<p>It is then advised that netsync be run as a cron job daily or weekly.
+That is how is was designed to be used.</p>
+<p>
+</p>
+<h3><a name="perl">Perl</a></h3>
+<p>It is simple to invoke the Perl implementation manually.
+The easiest way is to use the provided script, <em class="file">neysync.sh</em>.
+If the first argument to the script is not &quot;install&quot; or &quot;remove&quot;,
+it will assume the arguments are options and parameters intended for netsync.</p>
+<pre>
+ $ netsync.sh --help</pre>
+<p>Note: This feature of <em class="file">netsync.sh</em> will work whether netsync has been installed or not.</p>
+<p>
+</p>
+<h4><a name="libraries">Libraries</a></h4>
+<dl>
+<dt><strong><a name="netsync_configurator" class="item">Netsync::Configurator</a></strong></dt>
+
+<dd>
+<p>methods for handling configuration files and default settings</p>
+</dd>
+<dt><strong><a name="netsync_filemanager" class="item">Netsync::FileManager</a></strong></dt>
+
+<dd>
+<p>methods for handling I/O automatically and efficiently</p>
+</dd>
+<dt><strong><a name="netsync_networker" class="item">Netsync::Networker</a></strong></dt>
+
+<dd>
+<p>methods for manipulating netsync's internal view of a network</p>
+</dd>
+<dt><strong><a name="netsync_ui" class="item">Netsync::UI</a></strong></dt>
+
+<dd>
+<p>methods for interacting with the user</p>
+</dd>
+</dl>
+<p>
+</p>
+<h4><a name="manual_invocation">Manual Invocation</a></h4>
+<pre>
+ $ perl -I lib src/netsync.pl</pre>
+<p>
+</p>
+<h2><a name="1_runtime_configuration">1 Runtime Configuration</a></h2>
+<p>
+</p>
+<h3><a name="options">Options</a></h3>
+<p>
+</p>
+<h4><a name="_h___help">-h --help</a></h4>
+<p>Help. Print usage and options.</p>
+<p>Note: Help and Version print information and exit, netsync is not executed in either case.</p>
+<p>
+</p>
+<h4><a name="_v">-V</a></h4>
+<p>Version. Print build information.</p>
+<p>Note: Help and Version print information and exit, netsync is not executed in either case.</p>
+<p>
+</p>
+<h4><a name="_v">-v</a></h4>
+<p>Verbose. Print everything.</p>
+<p>Note: If both Quiet and Verbose mode are used simultaneously, they cancel each other out.</p>
+<p>
+</p>
+<h4><a name="_q">-q</a></h4>
+<p>Quiet. Print nothing.</p>
+<p>Note: If both Quiet and Verbose mode are used simultaneously, they cancel each other out.</p>
+<p>
+</p>
+<h4><a name="_c__ini">-c .ini</a></h4>
+<p>Specify a configuration file to use. (default: <em class="file">/etc/netsync/netsync.ini</em>)</p>
+<p>
+</p>
+<h4><a name="_p__">-p #</a></h4>
+<p>Probe. There are 2 probe levels:</p>
+<pre>
+ 1: Probe the network for active nodes.
+ 2: Probe the database for those nodes.</pre>
+<p>See Description 6 Probe Level 1 for more.</p>
+<p>
+</p>
+<h4><a name="_d_pattern">-D pattern</a></h4>
+<p>Use DNS to retrieve a list of hosts matching the pattern.
+Use the pattern 'all' to turn off the hostname filter.</p>
+<p>
+</p>
+<h4><a name="_d__csv">-d .csv</a></h4>
+<p>Specify an <a href="http://www.ietf.org/rfc/rfc4180.txt" class="rfc">RFC4180</a>-compliant database file to use.</p>
+<p>
+</p>
+<h4><a name="_a">-a</a></h4>
+<p>Enable interface auto-matching.</p>
+<p>Note: Interface auto-matching is very likely to be helpful if the database manages interfaces numerically.
+If enabled, it causes a database port such as 23 to align with ifNames such as ethernet23 or Gi1/0/23.</p>
+<p>
+</p>
+<h3><a name="parameters">Parameters</a></h3>
+<p>
+</p>
+<h4><a name="_nodes_">[nodes]</a></h4>
+<p>Specify an <a href="http://www.ietf.org/rfc/rfc1035.txt" class="rfc">RFC1035</a>-compliant network node list to use.</p>
+<p>Note: Either -D pattern or nodes must be specified.
+If neither are present, input will be read from standard input (a pipe or the keyboard).</p>
+<p>
+</p>
+<h2><a name="2_settings">2 Settings</a></h2>
+<p>A configuration file may be specified using the -c option.
+Otherwise, a generic configuration file (/etc/netsync/netsync.ini) is provided,
+but it does not have enough information for netsync to be fully functional out-of-the-box.
+Namely, the following settings must be provided for a sufficient runtime environment:</p>
+<p>
+</p>
+<h3><a name="dns">DNS</a></h3>
+<p>Note: DNS settings are not necessary if only <a href="http://www.ietf.org/rfc/rfc1035.txt" class="rfc">RFC1035</a>-compliant node lists will be used (see [nodes]).</p>
+<p>
+</p>
+<h4><a name="domain">domain</a></h4>
+<p>a FQDN e.g. example.com</p>
+<p>
+</p>
+<h3><a name="snmp">SNMP</a></h3>
+<p>
+</p>
+<h4><a name="version">Version</a></h4>
+<p>Note: netsync should work out-of-the-box on a network with default SNMP settings,
+      but it is not recommended to operate a network with such an insecure configuration.</p>
+<dl>
+<dt><strong><a name="snmpv3" class="item">SNMPv3 (recommended)</a></strong></dt>
+
+<dd>
+<pre>
+ SecLevel  - (If this is left default, there isn't much benefit to using SNMPv3 over v2.)
+ SecName   - username (default: initial)
+ AuthPass  - the authentication (access) key
+ PrivPass  - the privacy (encryption) key</pre>
+</dd>
+<dt><strong><a name="snmpv2" class="item">SNMPv2</a></strong></dt>
+
+<dd>
+<pre>
+ Community - The SNMP community to address (default: public).</pre>
+</dd>
+</dl>
+<p>
+</p>
+<h3><a name="db">DB</a></h3>
+<p>Note: DB settings are not necessary if only <a href="http://www.ietf.org/rfc/rfc4180.txt" class="rfc">RFC4180</a>-compliant database (.csv) files will be used (see -d).</p>
+<p>
+</p>
+<h4><a name="dbms">DBMS</a></h4>
+<p>the type of database e.g. Oracle</p>
+<p>
+</p>
+<h4><a name="server">Server</a></h4>
+<p>the database location</p>
+<p>
+</p>
+<h4><a name="port">Port</a></h4>
+<p>the database location</p>
+<p>
+</p>
+<h4><a name="database">Database</a></h4>
+<p>the name of the database</p>
+<p>
+</p>
+<h4><a name="dsn">DSN</a></h4>
+<p>DBMS-specific connection details</p>
+<p>
+</p>
+<h4><a name="username">Username</a></h4>
+<p>the name of a user that has access to the database</p>
+<p>
+</p>
+<h4><a name="password">Password</a></h4>
+<p>the authentication key of the user</p>
+<p>
+</p>
+<h3><a name="netsync">netsync</a></h3>
+<pre>
+                           Table
+ ---------------------------------------------------------
+ |  DeviceField  |  InterfaceField  |  InfoFields...     |
+ ---------------------------------------------------------                              =============
+ |   (serial)    |     (ifName)     |(interface-specific)|   ---&gt;    netsync    ---&gt;    || SyncOID ||
+ |                          ...                          |                              =============
+ ---------------------------------------------------------                                    (device)</pre>
+<p>Note: Once netsync has identified an interface in the database with its corresponding interface on the network,
+      it will overwrite the device with the InfoFields in the database.</p>
+<p>
+</p>
+<h4><a name="table">Table</a></h4>
+<p>the name of the table in the database that contains the following fields</p>
+<p>
+</p>
+<h4><a name="devicefield">DeviceField</a></h4>
+<p>the field that provides a unique ID for each device</p>
+<p>
+</p>
+<h4><a name="interfacefield">InterfaceField</a></h4>
+<p>the field that holds interface names retrieved from the IF-MIB (ifName) via SNMP</p>
+<p>
+</p>
+<h4><a name="infofields">InfoFields</a></h4>
+<p>a comma-separated list of fields containing interface-specific information</p>
+<p>
+</p>
+<h4><a name="syncoid">SyncOID</a></h4>
+<p>Values from InfoFields will be concatenated (respectively) and stored in the device via SNMP.</p>
+<p>
+</p>
+<h3><a name="optional">Optional</a></h3>
+<p>Explanation of each log and cache file will be provided in context below.</p>
+<p>
+</p>
+<h4><a name="indent">Indent</a></h4>
+<p>a formatting option to specify the number of spaces to proceed details of a previous line</p>
+<p>
+</p>
+<h4><a name="nodeorder">NodeOrder</a></h4>
+<p>a formatting option to adapt discovered node counts to any size network (must be &gt; 0)</p>
+<p>Example</p>
+<dl>
+<dt><strong><a name="3" class="item">NodeOrder = 3 (nodes &lt; 1000), 780 nodes</a></strong></dt>
+
+<dd>
+<pre>
+ &gt; discovering (using DNS)... 780 nodes (50 inactive), 800 devices (10 stacks)</pre>
+</dd>
+<dt><strong><a name="9" class="item">NodeOrder = 9 (nodes &lt; 1000000000), 780 nodes</a></strong></dt>
+
+<dd>
+<pre>
+ &gt; discovering (using DNS)...       780 nodes (50 inactive), 800 devices (10 stacks)</pre>
+</dd>
+<dt><strong><a name="1" class="item">NodeOrder = 1 (nodes &lt; 10), 24 nodes !</a></strong></dt>
+
+<dd>
+<pre>
+ &gt; discovering (using DNS)... 1111111111222224 nodes (5 inactive), 26 devices (1 stack)</pre>
+</dd>
+</dl>
+<p>
+</p>
+<h4><a name="mibdir">MIBdir</a></h4>
+<p>the location of MIBs required by netsync</p>
+<p>Requirements</p>
+<dl>
+<dt><strong><a name="standard" class="item">standard</a></strong></dt>
+
+<dl>
+<dt><strong><a name="if_mib" class="item">IF-MIB</a></strong></dt>
+
+<dt><strong><a name="entity_mib" class="item">ENTITY-MIB</a></strong></dt>
+
+</dl>
+</dd>
+<dt><strong><a name="cisco" class="item">Cisco</a></strong></dt>
+
+<dl>
+<dt><strong><a name="cisco_stack_mib" class="item">CISCO-STACK-MIB</a></strong></dt>
+
+</dl>
+</dd>
+<dt><strong><a name="brocade" class="item">Brocade</a></strong></dt>
+
+<dl>
+<dt><strong><a name="foundry_sn_agent_mib" class="item">FOUNDRY-SN-AGENT-MIB</a></strong></dt>
+
+<dt><strong><a name="foundry_sn_switch_group_mib" class="item">FOUNDRY-SN-SWITCH-GROUP-MIB</a></strong></dt>
+
+</dl>
+</dd>
+<dt><strong><a name="hp" class="item">HP</a></strong></dt>
+
+<dl>
+<dt><strong><a name="semi_mib" class="item">SEMI-MIB</a></strong></dt>
+
+</dl>
+</dd>
+</dl>
+<p>
+</p>
+<h2><a name="3_data_structures">3 Data Structures</a></h2>
+<p>netsync builds an internal view of the network whenever it is run.
+Each node is associated with its IP address and device(s).
+Each device is associated with is serial and interface(s).
+Each interface is associated with interface-specific information from the database.</p>
+<p>The resulting data structure could be described as a list of trees.</p>
+<pre>
+ |-&gt; node (IP)
+ |-&gt; node (IP)
+ |-&gt; node (IP)
+ |                              -interface (ifName)
+ |                             /
+ |             -device (serial)--interface (ifName)
+ |            /                \
+ |-V node (IP)                  -interface (ifName)
+ |            \
+ |             -device (serial)--interface (ifName)
+ |                             \
+ |                              -interface (ifName)
+ |-&gt; node (IP)
+ |-&gt; node (IP)
+ |                              -interface (ifName)
+ |                             /
+ |-V node (IP)--device (serial)--interface (ifName)
+ |                             \
+ |                              -interface (ifName)
+ |-&gt; node (IP)
+ |-&gt; node (IP)
+ |-&gt; node (IP)
+ |-&gt; node (IP)
+ ...</pre>
+<p>
+</p>
+<h3><a name="states">States</a></h3>
+<p>
+</p>
+<h4><a name="nodes">Nodes</a></h4>
+<pre>
+       active : reachable and responsive
+     inactive : unreachable or unresponsive</pre>
+<p>
+</p>
+<h4><a name="devices___interfaces">Devices &amp; Interfaces</a></h4>
+<pre>
+   recognized : found on the network and in the database
+ unrecognized : found on the network but not in the database
+   identified : found in the database and on the network
+ unidentified : found in the database but not on the network</pre>
+<p>Invariants</p>
+<pre>
+          recognized &lt;-&gt; identified
+ unrecognized device --&gt; unrecognized interfaces
+ unidentified device --&gt; unidentified interfaces</pre>
+<p>
+</p>
+<h2><a name="4_discovery">4 Discovery</a></h2>
+<p>The first task netsync has is to find all relevant nodes on the network.
+Relevant nodes are specified one of three ways:</p>
+<p>
+</p>
+<h3><a name="using__d_pattern">using -D pattern</a></h3>
+<p>The pattern is used to select appropriate hosts.</p>
+<p>Note: Only A or AAAA records with valid IPv4 or IPv6 addresses are used.</p>
+<p>Example</p>
+<pre>
+ $ netsync.sh -D &quot;sw[^.]+|hub[0-9]+&quot;
+ www.example.com            &lt;-- no match (www)
+ hub123.example.com         &lt;-- match (hub123)
+ sw1234.example.com         &lt;-- match (sw1234)</pre>
+<p>
+</p>
+<h3><a name="using__nodes_">using [nodes]</a></h3>
+<p>[nodes] is a path to a file containing an <a href="http://www.ietf.org/rfc/rfc1035.txt" class="rfc">RFC1035</a>-compliant list of relevant nodes.</p>
+<p>
+</p>
+<h4><a name="about_rfc1035">About <a href="http://www.ietf.org/rfc/rfc1035.txt" class="rfc">RFC1035</a></a></h4>
+<p>RFC1035 specifies a satisfactory format for resource records found in a nameserver (see 3.2.1).
+This format is used to produce the output of the popular command-line utility dig.
+Thus, for simple pipes as described in part 3 above, netsync accepts <a href="http://www.ietf.org/rfc/rfc1035.txt" class="rfc">RFC1035</a>-compliant input.</p>
+<p>
+</p>
+<h3><a name="using__pipe_or_keyboard_">using (pipe or keyboard)</a></h3>
+<p>When no input directives are detected, netsync attempts to pull a node list from standard input.
+This allows pipelining with dig, grep, and other command-line utilities for extended functionality.</p>
+<p>Examples</p>
+<pre>
+ $ dig axfr example.com | grep hub123 | netsync.sh</pre>
+<p></p>
+<pre>
+ $ cat superset.txt | grep hub[0-9]+ | netsync.sh</pre>
+<p>
+</p>
+<h2><a name="5_node_processing">5 Node Processing</a></h2>
+<p>Once all relevant nodes have been specified, netsync must attempt to contact each to see if it is active.
+Any node that netsync attempts to contact is logged in NodeLog with the results of the attempt.
+If the node is active, netsync will try to extract the serial numbers of all devices present at that node.
+If more than one serial is discovered, netsync will try to map interfaces to each device (serial).</p>
+<p>Note: Only ASCII serials are supported.</p>
+<p>
+</p>
+<h3><a name="supported_node_vendors">Supported Node Vendors</a></h3>
+<dl>
+<dt><strong><a name="brocade2" class="item">Brocade</a></strong></dt>
+
+<dt><strong><a name="cisco2" class="item">Cisco</a></strong></dt>
+
+<dt><strong><a name="hp2" class="item">HP</a></strong></dt>
+
+</dl>
+<p>
+</p>
+<h3><a name="supported_stack_vendors">Supported Stack Vendors</a></h3>
+<dl>
+<dt><strong><a name="brocade3" class="item">Brocade</a></strong></dt>
+
+<dt><strong><a name="cisco3" class="item">Cisco</a></strong></dt>
+
+</dl>
+<p>
+</p>
+<h3><a name="mapping_process">Mapping Process</a></h3>
+<ol>
+<li><strong><a name="extract_interfaces" class="item">Extract interfaces.</a></strong>
+
+<dl>
+<dt><strong>standard</strong></dt>
+
+<dd>
+<ol>
+<li><strong><a name="3_6_1_2_1_2_2_1_3_iftype" class="item">3.6.1.2.1.2.2.1.3 : ifType</a></strong>
+
+<p>Interfaces with the follwing ifTypes are excluded:</p>
+<dl>
+<dt><strong><a name="other" class="item"><code>other(1)</code></a></strong></dt>
+
+<dt><strong><a name="softwareloopback" class="item">softwareLoopback(24)</a></strong></dt>
+
+<dt><strong><a name="propvirtual" class="item">propVirtual(53)</a></strong></dt>
+
+</dl>
+</li>
+<li><strong><a name="3_6_1_2_1_31_1_1_1_ifname" class="item">3.6.1.2.1.31.1.1.1 : ifName</a></strong>
+
+<p>Note: ifDescr (1.3.6.1.2.1.2.2.1.2) will be used if, for some reason, ifName is not present.</p>
+</li>
+</ol>
+</dd>
+<dt><strong><a name="proprietary" class="item">proprietary</a></strong></dt>
+
+<dd>
+<p>(unsupported)</p>
+</dd>
+</dl>
+</li>
+<li><strong><a name="extract_serials" class="item">Extract serials.</a></strong>
+
+<dl>
+<dt><strong>standard</strong></dt>
+
+<dd>
+<ol>
+<li><strong><a name="3_6_1_2_1_47_1_1_1_1_5_entphysicalclass" class="item">3.6.1.2.1.47.1.1.1.1.5 : entPhysicalClass</a></strong>
+
+<p>Entities with the following entPhysicalClass are included:</p>
+<dl>
+<dt><strong><a name="chassis" class="item"><code>chassis(3)</code></a></strong></dt>
+
+</dl>
+</li>
+<li><strong><a name="3_6_1_2_1_47_1_1_1_1_11_entphysicalserialnum" class="item">3.6.1.2.1.47.1.1.1.1.11 : entPhysicalSerialNum</a></strong>
+
+</li>
+</ol>
+</dd>
+<dt><strong>proprietary</strong></dt>
+
+<dd>
+<p>Note: Multiple OIDs are tried in case one is not present.</p>
+<dl>
+<dt><strong><a name="cisco4" class="item">Cisco</a></strong></dt>
+
+<dd>
+<ol>
+<li><strong><a name="3_6_1_4_1_9_5_1_3_1_1_3_moduleserialnumber" class="item">3.6.1.4.1.9.5.1.3.1.1.3 : moduleSerialNumber</a></strong>
+
+</li>
+<li><strong><a name="3_6_1_4_1_9_5_1_3_1_1_26_moduleserialnumberstring" class="item">3.6.1.4.1.9.5.1.3.1.1.26 : moduleSerialNumberString</a></strong>
+
+</li>
+</ol>
+</dd>
+<dt><strong><a name="brocade4" class="item">Brocade</a></strong></dt>
+
+<dd>
+<ol>
+<li><strong><a name="3_6_1_4_1_1991_1_1_1_4_1_1_2_snchasunitsernum" class="item">3.6.1.4.1.1991.1.1.1.4.1.1.2 : snChasUnitSerNum</a></strong>
+
+</li>
+<li><strong><a name="3_6_1_4_1_1991_1_1_1_1_2_snchassernum" class="item">3.6.1.4.1.1991.1.1.1.1.2 : snChasSerNum</a></strong>
+
+<p>Note: This OID does NOT support stacks.</p>
+</li>
+</ol>
+</dd>
+<dt><strong><a name="hp3" class="item">HP</a></strong></dt>
+
+<dd>
+<ol>
+<li><strong><a name="3_6_1_4_1_11_2_36_1_1_2_9_hphttpmgserialnumber" class="item">3.6.1.4.1.11.2.36.1.1.2.9 : hpHttpMgSerialNumber</a></strong>
+
+</li>
+</ol>
+</dd>
+</dl>
+</dd>
+</dl>
+</li>
+<li><strong><a name="map_interfaces_to_serials" class="item">Map interfaces to serials.</a></strong>
+
+<dl>
+<dt><strong>standard</strong></dt>
+
+<dd>
+<p>(unsupported)</p>
+</dd>
+<dt><strong>proprietary</strong></dt>
+
+<dl>
+<dt><strong><a name="cisco5" class="item">Cisco</a></strong></dt>
+
+<dd>
+<ol>
+<li><strong><a name="3_6_1_4_1_9_5_1_4_1_1_11_portifindex" class="item">3.6.1.4.1.9.5.1.4.1.1.11 : portIfIndex</a></strong>
+
+</li>
+<li><strong><a name="3_6_1_4_1_9_5_1_4_1_1_1_portmoduleindex" class="item">3.6.1.4.1.9.5.1.4.1.1.1 : portModuleIndex</a></strong>
+
+</li>
+<li><strong><a name="3_6_1_4_1_9_5_1_3_1_1_3_moduleserialnumber2" class="item">3.6.1.4.1.9.5.1.3.1.1.3 : moduleSerialNumber</a></strong>
+
+</li>
+<li><strong><a name="3_6_1_4_1_9_5_1_3_1_1_26_moduleserialnumberstring2" class="item">3.6.1.4.1.9.5.1.3.1.1.26 : moduleSerialNumberString</a></strong>
+
+</li>
+</ol>
+</dd>
+<dt><strong><a name="brocade5" class="item">Brocade</a></strong></dt>
+
+<dd>
+<ol>
+<li><strong><a name="3_6_1_4_1_1991_1_1_3_3_1_1_38_snswportifindex" class="item">3.6.1.4.1.1991.1.1.3.3.1.1.38 : snSwPortIfIndex</a></strong>
+
+</li>
+<li><strong><a name="3_6_1_4_1_1991_1_1_3_3_1_1_39_snswportdescr" class="item">3.6.1.4.1.1991.1.1.3.3.1.1.39 : snSwPortDescr</a></strong>
+
+<p>Note: netsync assumes unit/module/interface (U/M/I) definitively maps unit to module IID.</p>
+</li>
+<li><strong><a name="3_6_1_4_1_1991_1_1_1_4_1_1_2_snchasunitsernum2" class="item">3.6.1.4.1.1991.1.1.1.4.1.1.2 : snChasUnitSerNum</a></strong>
+
+</li>
+</ol>
+</dd>
+</dl>
+</dd>
+</dl>
+</li>
+</ol>
+<p>
+</p>
+<h2><a name="6_probe_level_1">6 Probe Level 1</a></h2>
+<p>If the probe option is used, netsync will not complete execution entirely,
+and neither the devices nor the database will be modified.
+Instead, resources are created to aid in future runs of netsync.
+Probe functionality is broken into levels that correspond to netsync stages.
+Each level is accumulative (i.e. level 2 does level 1, too).</p>
+<p>Probe level 1 is specified using -p1 and updates Probe1Cache.</p>
+<p>During probe Level 1, netsync executes the discovery stage only.
+After probing the network for active nodes (logging them appropriately),
+it creates an <a href="http://www.ietf.org/rfc/rfc1035.txt" class="rfc">RFC1035</a>-compliant list of them (default: <em class="file">/var/cache/netsync/dns.txt</em>).
+This list may then be used as input to netsync to skip inactive nodes later.</p>
+<p>Example</p>
+<pre>
+ $ netsync.sh -p1 -D &quot;sw[^.]+|hub[0-9]+&quot;
+ &gt; configuring (using /etc/netsync/netsync.ini)...
+ &gt; discovering (using DBMS)...  780 nodes (50 inactive), 800 devices (10 stacks)
+ $ netsync.sh /var/cache/netsync/dns.txt
+ &gt; configuring (using /etc/netsync/netsync.ini)...
+ &gt; discovering (using /var/cache/netsync/dns.txt)...  780 nodes, 800 devices (10 stacks)
+ &gt; identifying (using DBMS)...  670 recognized (4 conflicts)</pre>
+<p>
+</p>
+<h2><a name="7_identification">7 Identification</a></h2>
+<p>Once netsync has a view of the network's hardware,
+it requires a database to find information specific to each interface.</p>
+<p>Note: Since netsync treats the database as read-only,
+      it assumes the specified table and fields are already present and populated in the database.</p>
+<p>The database may be provided one of two ways:</p>
+<p>
+</p>
+<h3><a name="using_dbms__recommended_">using DBMS (recommended)</a></h3>
+<p>This must be preconfigured in the configuration file and on the DBMS.</p>
+<p>
+</p>
+<h3><a name="using__d__csv">using -d .csv</a></h3>
+<p>A <a href="http://www.ietf.org/rfc/rfc4180.txt" class="rfc">RFC4180</a>-compliant database file may be specified using -d.</p>
+<p>
+</p>
+<h4><a name="about_rfc4180">About <a href="http://www.ietf.org/rfc/rfc4180.txt" class="rfc">RFC4180</a></a></h4>
+<p>RFC4180 specifies a simple format (CSV) for database files.
+This format is almost universally supported making it useful for importing and exporting data.
+Thus, for part 2 above, netsync accepts and produces <a href="http://www.ietf.org/rfc/rfc4180.txt" class="rfc">RFC4180</a>-compliant files.</p>
+<p>
+</p>
+<h2><a name="8_synchronization_and_conflicts">8 Synchronization and Conflicts</a></h2>
+<p>netsync locates the entries of the database on the network.
+If either DeviceField or InterfaceField are empty in a given row, the invalid row is skipped.
+Valid rows are synchronized with the network.
+Any entry that netsync synchronizes is logged in DeviceLog with previously unseen network locations.</p>
+<p>Devices are located by searching for DeviceField values in its internal representation of the network.
+Rows with unidentified (not found) devices are skipped.
+Entries are then checked for conflicts.</p>
+<p>Unless netsync is running in Quiet mode, it will ask whether you want to resolve conflicts or not.
+Answering no is the same as running in Quiet mode, both cause conflicts to be resolved automatically.</p>
+<p>There are 3 types of conflicts.</p>
+<p>
+</p>
+<h3><a name="unidentified_interfaces">Unidentified Interfaces</a></h3>
+<p>This occurs when netsync fails to find an InterfaceField value on an identified device.
+If interface auto-matching is not enabled, the unidentified interface is skipped,
+or if probing (-p) is used and the interface-specific information isn't empty,
+the row is dumped (default: <em class="file">/var/cache/netsync/unidentified.csv</em>).
+Interface auto-matching is very likely to be helpful if the database manages interfaces numerically.
+If enabled, it causes a database port such as 23 to align with ifNames such as ethernet23 or Gi1/0/23.</p>
+<p>
+</p>
+<h3><a name="duplicate_entries">Duplicate Entries</a></h3>
+<p>This occurs when more than one entry for the same interface exists in the database.
+During automatic resolution, the last entry seen is kept,
+otherwise netsync will ask which entry to keep.
+The motivation for this is the idea that entries farther into the file were likely added later.</p>
+<p>
+</p>
+<h3><a name="unrecognized_devices___interfaces">Unrecognized Devices &amp; Interfaces</a></h3>
+<p>This occurs when hardware is found on the network but not in the database.
+If conflicts aren't being automatically resolved and probing (-p) is used,
+you will be asked to initialize unrecognized hardware.
+If the unrecognized hardware is not manually initialized, it will be logged in UnrecognizedLog.</p>
+<p>
+</p>
+<h2><a name="9_probe_level_2">9 Probe Level 2</a></h2>
+<p>Probe level 2 is specified using -p2 and updates Probe1Cache, UnidentifiedCache, and Probe2Cache.</p>
+<p>During probe level 2, netsync executes the discovery and identification stages only.
+After probing the database for discovered nodes (logging them appropriately),
+it creates an <a href="http://www.ietf.org/rfc/rfc4180.txt" class="rfc">RFC4180</a>-compliant list of them (default: <em class="file">/var/cache/netsync/db.csv</em>).
+This list may then be used as input to netsync to skip synchronization later.</p>
+<p>Example</p>
+<pre>
+ $ netsync.sh -p2 -D &quot;sw[^.]+|hub[0-9]+&quot; -a
+ &gt; configuring (using /etc/netsync/netsync.ini)...
+ &gt; discovering (using DNS)...  780 nodes (50 inactive), 800 devices (10 stacks)
+ &gt; identifying (using DBMS)...  670 recognized (4 conflicts)
+ &gt; Do you want to resolve conflicts now? [y/n] n
+ $ netsync.sh -d /var/cache/netsync/db.csv /var/cache/netsync/dns.txt
+ &gt; configuring (using /etc/netsync/netsync.ini)...
+ &gt; discovering (using /var/cache/netsync/dns.txt)...  780 nodes, 800 devices (10 stacks)
+ &gt; identifying (using /var/cache/netsync/db.csv)...  800 recognized</pre>
+<p>Note: All unrecognized hardware will be present in Probe2Cache; however, no unidentified entries will.
+      Instead, unidentified entries are stored in UnidentifiedCache.
+      This is so the output of probe level 2 can serve as a sort of snapshot of the network in time.</p>
+<p>
+</p>
+<h2><a name="10_updating">10 Updating</a></h2>
+<p>All modifications made to any device are logged in UpdateLog.</p>
+<p>If probing is not used, netsync attempts to actualize its internally synchronized network using SNMP.
+This is done by pushing gathered interface-specific information to the devices on the network.
+This information is stored in the device at the specified SyncOID, and is overwritten anytime netsync updates it.</p>
+<p>
+</p>
+<hr />
+<h1><a name="examples">EXAMPLES</a></h1>
+<pre>
+ $ netsync.sh -D &quot;sw[^.]+|hub[0-9]+&quot; -a
+ &gt; configuring (using /etc/netsync/netsync.ini)...
+ &gt; discovering (using DNS)...  780 nodes (50 inactive), 800 devices (10 stacks)
+ &gt; identifying (using DBMS)...  670 recognized (4 conflicts)</pre>
+<p></p>
+<pre>
+ $ dig axfr domain.tld | egrep ^(sw[^.]+|hub[0-9]+) | netsync.sh
+ &gt; configuring (using /etc/netsync/netsync.ini)...
+ &gt; discovering (using STDIN)...  780 nodes (50 inactive), 800 devices (10 stacks)
+ &gt; identifying (using DBMS)...  670 recognized (4 conflicts)</pre>
+<p></p>
+<pre>
+ $ netsync.sh -p1 -D &quot;sw[^.]+|hub[0-9]+&quot;
+ &gt; configuring (using /etc/netsync/netsync.ini)...
+ &gt; discovering (using DBMS)...  780 nodes (50 inactive), 800 devices (10 stacks)
+ $ netsync.sh /var/cache/netsync/dns.txt
+ &gt; configuring (using /etc/netsync/netsync.ini)...
+ &gt; discovering (using /var/cache/netsync/dns.txt)...  780 nodes, 800 devices (10 stacks)
+ &gt; identifying (using DBMS)...  670 recognized (4 conflicts)</pre>
+<p></p>
+<pre>
+ $ netsync.sh -p2 -D &quot;sw[^.]+|hub[0-9]+&quot; -a
+ &gt; configuring (using /etc/netsync/netsync.ini)...
+ &gt; discovering (using DNS)...  780 nodes (50 inactive), 800 devices (10 stacks)
+ &gt; identifying (using DBMS)...  670 recognized (4 conflicts)
+ $ netsync.sh -d /var/cache/netsync/db.csv /var/cache/netsync/dns.txt
+ &gt; configuring (using /etc/netsync/netsync.ini)...
+ &gt; discovering (using /var/cache/netsync/dns.txt)...  780 nodes, 800 devices (10 stacks)
+ &gt; identifying (using /var/cache/netsync/db.csv)...  800 recognized</pre>
+<p>
+</p>
+<hr />
+<h1><a name="author">AUTHOR</a></h1>
+<p>David Tucker</p>
+<p>
+</p>
+<hr />
+<h1><a name="license">LICENSE</a></h1>
+<p>This file is part of netsync.
+netsync is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+netsync is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details.
+You should have received a copy of the GNU General Public License along with netsync.
+If not, see <a href="http://www.gnu.org/licenses/">http://www.gnu.org/licenses/</a>.</p>
+
+</body>
+
+</html>
