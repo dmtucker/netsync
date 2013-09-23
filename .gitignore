@@ -25,7 +25,7 @@ Icon
 *.dylib
 
 # Executables
-bin/
+#bin/
 *.exe
 *.out
 *.app
