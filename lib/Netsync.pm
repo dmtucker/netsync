@@ -22,6 +22,27 @@ use Netsync::Networker;
 use Netsync::UI;
 
 
+=head1 NAME
+
+Netsync - network/database utility
+
+=head1 SYNOPSIS
+
+C<use Netsync;>
+
+=cut
+
+
+our $VERSION = '1.0.0';
+
+
+=head1 DESCRIPTION
+
+This module is responsible for discovering and synchronizing a network and a database
+
+=head1 METHODS
+
+=cut
 
 
 sub probe {
@@ -65,7 +86,25 @@ sub probe {
 }
 
 
+=head2 discover [$nodes]
 
+search the network for active nodes
+
+=head3 Arguments
+
+=head4 [C<$nodes>]
+
+an $ip => $node hash
+
+=head3 Example
+
+=over 4
+
+=item C<my $nodes = discover;>
+
+=back
+
+=cut
 
 sub discover {
     warn 'too many arguments' if @_ > 1;
@@ -364,7 +403,25 @@ sub resolve_conflicts {
 }
 
 
+=head2 identify $nodes
 
+a list of nodes to synchronize
+
+=head3 Arguments
+
+=head4 C<$nodes>
+
+an $ip => $node hash
+
+=head3 Example
+
+=over 4
+
+=item C<identify $nodes;>
+
+=back
+
+=cut
 
 sub identify {
     warn 'too few arguments'  if @_ < 1;
@@ -496,6 +553,26 @@ sub identify {
 
 
 
+
+=head2 update $nodes
+
+push information to interfaces
+
+=head3 Arguments
+
+=head4 C<$nodes>
+
+an $ip => $node hash
+
+=head3 Example
+
+=over 4
+
+=item C<update $nodes;>
+
+=back
+
+=cut
 
 sub update {
     warn 'too few arguments'  if @_ < 1;
