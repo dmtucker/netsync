@@ -14,13 +14,10 @@
 
 2013-09-23 : 2.0.0 : Kiwi Oyster
     - improvements to corner-case handling
-    - README.md replaced by README.html
+    - README.md combined with netsync.pod to make README.pod
     - directory restructure for better conventional FHS support
     - Netsync is now an API.
     - installer
-    - new options: -v, -u, -m
-    - removed options: -D
-    - modified parameters: [nodes[ ...]]
     - DB cred. requirement bug fixed
     - Library module APIs are properly documented and defined.
 
@@ -28,6 +25,9 @@
     - proper MIB dependencies documented
 
 2013-10-05 : 2.1.0 : Banana Oyster
+    - new options: -v, -u, -m
+    - removed options: -D
+    - modified parameters: [nodes[ ...]]
 
 2013-10-10 : 2.2.0 : Raspberry Oyster
     - run reports
