@@ -94,9 +94,6 @@ case $1 in
         
         ;;
     * )
-        mkdir -p bin
-        cp -R src/$PROJECT.pl bin/$PROJECT
-        chmod +x bin/$PROJECT
         perl -I lib src/$PROJECT.pl $@
         ;;
 esac
