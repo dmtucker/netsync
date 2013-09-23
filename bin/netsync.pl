@@ -6,7 +6,6 @@ use strict;
 use warnings;
 
 use feature 'say';
-use feature 'switch';
 
 use File::Basename;
 use Getopt::Std;

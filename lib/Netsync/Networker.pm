@@ -13,6 +13,7 @@ require Exporter;
           );
 
 use feature 'say';
+use feature 'switch';
 
 
 =head1 NAME
@@ -609,7 +610,7 @@ sub recognize_interface {
 
 =head2 device_interfaces ($vendor,$session)
 
-
+disocver all the devices and interfaces of a node
 
 =head3 Arguments
 

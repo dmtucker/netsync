@@ -94,6 +94,6 @@ case $1 in
         
         ;;
     * )
-        perl -I lib bin/$PROJECT.pl $@
+        perl -I ./lib ./bin/$PROJECT.pl $@
         ;;
 esac
