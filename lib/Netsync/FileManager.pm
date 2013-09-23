@@ -60,7 +60,7 @@ the POSIX time-string format to use (default: '%Y-%m-%d-%H:%M:%S')
 
 sub timestamp {
     warn 'too many arguments' if @_ > 1;
-    my ($format) = @_
+    my ($format) = @_;
     $format //= '%Y-%m-%d-%H:%M:%S'; #/#XXX
     
     my $timestamp = POSIX::strftime($format,localtime);
