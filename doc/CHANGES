@@ -18,15 +18,16 @@
     - directory restructure for better conventional FHS support
     - Netsync is now an API.
     - installer
-
-2013-10-03 : 2.0.1
-    - netsync API documented
-    - proper MIB dependencies documented
-
-2013-10-05 : 2.1.0 : Banana Oyster
     - new options: -v, -u, -m
     - removed options: -D
     - modified parameters: [nodes[ ...]]
+    - DB cred. requirement bug fixed
+    - Library module APIs are properly documented and defined.
+
+2013-10-03 : 2.0.1
+    - proper MIB dependencies documented
+
+2013-10-05 : 2.1.0 : Banana Oyster
 
 2013-10-10 : 2.2.0 : Raspberry Oyster
     - run reports
