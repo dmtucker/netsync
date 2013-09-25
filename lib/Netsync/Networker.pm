@@ -28,7 +28,11 @@ C<use Netsync::Networker;>
 
 
 our $VERSION = '0.2.0';
-my $indent = 4; #XXX
+
+our %config;
+{
+    $config{'Indent'} = 4;
+}
 
 
 =head1 DESCRIPTION
@@ -391,11 +395,11 @@ sub node_dump {
                     ++$recognized_interface_count if $interface->{'recognized'};
                 }
             }
-            print ((' 'x$indent).$device_count.' device');
+            print ((' 'x$config{'Indent'}).$device_count.' device');
             print 's' if $device_count > 1;
             print ' ('.$recognized_device_count.' recognized)' if $recognized_device_count > 0;
             print "\n";
-            print ((' 'x$indent).$interface_count.' interface');
+            print ((' 'x$config{'Indent'}).$interface_count.' interface');
             print 's' if $interface_count > 1;
             print ' ('.$recognized_interface_count.' recognized)' if $recognized_interface_count > 0;
             print "\n";
@@ -404,9 +408,9 @@ sub node_dump {
         if (defined $node->{'info'}) {
             my $info = $node->{'info'};
             if ($device_count == 1) {
-                #say ((' 'x$indent).$info->class); #XXX
-                say ((' 'x$indent).$info->vendor.' '.$info->model);
-                say ((' 'x$indent).$info->serial);
+                #say ((' 'x$config{'Indent'}).$info->class); #XXX
+                say ((' 'x$config{'Indent'}).$info->vendor.' '.$info->model);
+                say ((' 'x$config{'Indent'}).$info->serial);
             }
         }
     }
@@ -445,7 +449,7 @@ sub device_dump {
         say device_string $device;
         
         if (defined $device->{'recognized'}) {
-            say ((' 'x$indent).(($device->{'recognized'}) ? 'recognized' : 'unrecognized'));
+            say ((' 'x$config{'Indent'}).(($device->{'recognized'}) ? 'recognized' : 'unrecognized'));
         }
         
         if (defined $device->{'interfaces'}) {
@@ -455,7 +459,7 @@ sub device_dump {
                 my $interface = $device->{'interfaces'}{$ifName};
                 ++$recognized_interface_count if $interface->{'recognized'};
             }
-            print ((' 'x$indent).$interface_count.' interface');
+            print ((' 'x$config{'Indent'}).$interface_count.' interface');
             print 's' if $interface_count > 1;
             say ' ('.$recognized_interface_count.' recognized)';
         }
@@ -497,12 +501,12 @@ sub interface_dump {
         say interface_string $interface;
         
         if (defined $interface->{'recognized'}) {
-            say ((' 'x$indent).(($interface->{'recognized'}) ? 'recognized' : 'unrecognized'));
+            say ((' 'x$config{'Indent'}).(($interface->{'recognized'}) ? 'recognized' : 'unrecognized'));
         }
         
         if (defined $interface->{'info'}) {
             foreach my $field (sort keys %{$interface->{'info'}}) {
-                print ((' 'x$indent).$field.': ');
+                print ((' 'x$config{'Indent'}).$field.': ');
                 say (($interface->{'info'}{$field} =~ /[\S]+/) ? $interface->{'info'}{$field} : '(empty)');
             }
         }

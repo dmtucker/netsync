@@ -220,10 +220,10 @@ the authentication key of the user
                            Table
  ---------------------------------------------------------
  |  DeviceField  |  InterfaceField  |  InfoFields...     |
- ---------------------------------------------------------                              =============
- |   (serial)    |     (ifName)     |(interface-specific)|   --->    netsync    --->    || SyncOID ||
- |                          ...                          |                              =============
- ---------------------------------------------------------                                    (device)
+ ---------------------------------------------------------           =============
+ |   (serial)    |     (ifName)     |(interface-specific)|   --->    || SyncOID ||
+ |                          ...                          |           =============
+ ---------------------------------------------------------                (device)
 
 Note: Once netsync has identified an interface in the database with its corresponding interface on the network,
       it will overwrite the device with the InfoFields in the database.

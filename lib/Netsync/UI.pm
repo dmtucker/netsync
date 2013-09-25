@@ -20,7 +20,14 @@ Netsync::UI - methods for interacting with the user
 
 =head1 SYNOPSIS
 
-C<use Netsync::UI;>
+ use Netsync::UI;
+ 
+ if (ask 'Do you want to?') {
+     print "Yes\n";
+ }
+ else {
+     print choose ("What would you rather?",['a','b','c'])."\n";
+ }
 
 =cut
 
@@ -40,7 +47,7 @@ asks the user a yes or no question and returns an affirmative boolean
 
 =head3 Arguments
 
-=head4 C<$question>
+=head4 question
 
 a yes or no question to ask
 
@@ -83,11 +90,11 @@ asks the user to choose from a list of provided options using numeric input
 
 =head3 Arguments
 
-=head4 $message
+=head4 message
 
 a custom message to the user to help them understand what is going on
 
-=head4 \@choices
+=head4 choices
 
 a list of acceptable choices
 
