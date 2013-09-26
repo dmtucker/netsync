@@ -38,32 +38,31 @@ our %config;
     my $SCRIPT = fileparse ($0,"\.[^.]*");
     
     $config{'Indent'}            = 4;
+    $config{'Quiet'}             = 0;
+    $config{'Verbose'}           = 0;
     
     $config{'DeviceField'}       = undef;
     $config{'InfoFields'}        = undef;
     $config{'InterfaceField'}    = undef;
-
-    $config{'auto_match'}        = 0;
-    $config{'probe_level'}       = 0;
-    $config{'quiet'}             = 0;
-    $config{'verbose'}           = 0;
     
-    $config{'NodeOrder'}         = 4;
+    $config{'DeviceOrder'}         = 4;
     $config{'AlertLog'}          = '/var/log/'.$SCRIPT.'/'.$SCRIPT.'.log';
     $config{'DeviceLog'}         = '/var/log/'.$SCRIPT.'/devices.log';
     $config{'NodeLog'}           = '/var/log/'.$SCRIPT.'/nodes.log';
-    $config{'Probe1Cache'}       = '/var/cache/'.$SCRIPT.'/dns.txt';
-    $config{'Probe2Cache'}       = '/var/cache/'.$SCRIPT.'/db.csv';
     $config{'UnidentifiedCache'} = '/var/cache/'.$SCRIPT.'/unidentified.csv';
     $config{'UnrecognizedLog'}   = '/var/log/'.$SCRIPT.'/unrecognized.log';
     $config{'UpdateLog'}         = '/var/log/'.$SCRIPT.'/updates.log';
     $config{'SyncOID'}           = 'ifAlias';
+    
+    $config{'SNMP'} = undef;
+    $config{'DNS'}  = undef;
+    $config{'DB'}   = undef;
 }
 
 
 =head1 DESCRIPTION
 
-This package can discover and synchronize a network and database.
+This package can discover a network and synchronize it with a database.
 
 =head1 METHODS
 
@@ -84,15 +83,6 @@ Available Environment Settings
 where to log errors and alerts
 
 default: F</var/log/E<lt>script nameE<gt>/E<lt>script nameE<gt>.log>
-
-=item auto_match
-
-Enable interface auto-matching.
-
-default: 0
-
-Note: Interface auto-matching is very likely to be helpful if the database manages interfaces numerically.
-If enabled, it causes a database port such as 23 to align with ifNames such as ethernet23 or Gi1/0/23.
 
 =item DeviceField
 
@@ -118,59 +108,19 @@ which table fields to synchronize with device interfaces
 
 which table field to use as a unique ID for device interfaces
 
-=item node_list
-
-an RFC1035-compliant network node list to use
-
-default: '-'
-
-Note: '-' causes input to be taken from STDIN if neither node_list nor use_DNS are specified.
-
 =item NodeLog
 
 where to log all probed nodes
 
 default: F</var/log/E<lt>script nameE<gt>/nodes.log>
 
-=item NodeOrder
+=item DeviceOrder
 
-the width of fields specifying node counts
+the width of fields specifying node and device counts
 
 default: 4
 
-=item probe_level
-
-Probe Levels
-
-=over 6
-
-=item 1 Probe the network for active nodes.
-
-=item 2 Probe the database for those nodes.
-
-=back
-
-Note: If the probe option is used, netsync will not complete execution entirely,
-and neither the devices nor the database will be modified.
-Instead, resources are created to aid in future runs of netsync.
-Probe functionality is broken into levels that correspond to netsync stages.
-Each level is accumulative (i.e. level 2 does level 1, too).
-
-default: 0
-
-=item Probe1Cache
-
-where probe level 1 RFC1035 output is stored
-
-default: F</var/cache/E<lt>script nameE<gt>/dns.txt>
-
-=item Probe2Cache
-
-where probe level 2 RFC4180 output is stored
-
-default: F</var/cache/E<lt>script nameE<gt>/db.csv>
-
-=item quiet
+=item Quiet
 
 Print nothing.
 
@@ -200,21 +150,7 @@ where to log all modifications made to the network
 
 default: F</var/log/E<lt>script nameE<gt>/updates.log>
 
-=item use_CSV
-
-an RFC4180-compliant database file to use
-
-default: undef
-
-=item use_DNS
-
-a pattern to use while matching hosts in DNS
-
-Note: Use the pattern 'all' to turn off the hostname filter.
-
-default: undef
-
-=item verbose
+=item Verbose
 
 Print everything.
 
@@ -259,19 +195,38 @@ sub configure {
         $success = 0;
     }
     if (defined $DB) {
-        unless (Netsync::Configurator::DB::configure($DB)) {
-            warn 'Netsync::Configurator:DB misconfiguration';
+        $config{'DB'} = $DB;
+        unless (defined $DB->{'Server'}   and defined $DB->{'Port'}     and
+                defined $DB->{'DBMS'}     and defined $DB->{'Database'} and
+                defined $DB->{'Username'} and defined $DB->{'Password'}) {
+            warn 'Database configuration is inadequate. See Server, Port, DBMS, Database, Username, or Password.';
             $success = 0;
         }
     }
     if (defined $DNS) {
-        unless (defined Netsync::Configurator::DNS::configure($DNS)) {
-            warn 'Netsync::Configurator::DNS misconfiguration';
-            $success = 0;
-        }
+        $config{'DNS'} = $DNS;
+        unless (defined $DNS->{'domain'}) {
+             warn 'DNS configuration is inadequate.';
+             $success = 0;
+         }
     }
     return $success;
 }
+
+
+=head2 discover [($node_source[,$host_pattern])]
+
+search the network for active nodes
+
+=head3 Arguments
+
+=head4 [node_source]
+
+=head4 [host_pattern]
+
+=head3 Example
+
+=cut
 
 
 sub probe {
@@ -280,14 +235,14 @@ sub probe {
     my $serial_count = 0;
     foreach my $node (@nodes) {
         
-        my ($session,$info) = SNMP_Info $node->{'ip'};
+        my ($session,$info) = Configurator::SNMP::Info $node->{'ip'};
         if (defined $info) {
             $node->{'session'} = $session;
             $node->{'info'}    = $info;
         }
         else {
             note ($config{'NodeLog'},node_string ($node).' inactive');
-            say node_string ($node).' inactive' if $config{'verbose'};
+            say node_string ($node).' inactive' if $config{'Verbose'};
             next;
         }
         
@@ -305,74 +260,63 @@ sub probe {
             }
         }
         
-        node_dump $node if $config{'verbose'};
+        node_dump $node if $config{'Verbose'};
     }
     return $serial_count;
 }
 
-
-=head2 discover [$nodes]
-
-search the network for active nodes
-
-=head3 Arguments
-
-=head4 [C<$nodes>]
-
-an $ip => $node hash
-
-=head3 Example
-
-=over 4
-
-=item C<my $nodes = discover;>
-
-=back
-
-=cut
-
 sub discover {
-    warn 'too many arguments' if @_ > 3;
-    my ($node_list,$host_pattern,$nodes) = @_;
-    $node_list    //= '-'; #/#XXX
-    $host_pattern //= ''; #/#XXX : probably not right!
-    $nodes        //= {}; #/#XXX
+    warn 'too many arguments' if @_ > 2;
+    my ($node_source,$host_pattern) = @_;
+    $node_source  //= 'DNS'; #/#XXX
+    $host_pattern //= '[^.]+'; #/#XXX
     
-    unless ($config{'quiet'}) {
-        print 'discovering';
-        print ' (using '.((defined $config{'use_DNS'})  ? 'DNS'   :
-                          ($config{'node_list'} eq '-') ? 'STDIN' : $config{'node_list'}).')...';
+    my $nodes = {};
+    
+    unless ($config{'Quiet'}) {
+        print 'discovering (using '.$node_source.')...';
+        print (($config{'Verbose'}) ? "\n" : (' 'x$config{'DeviceOrder'}).'0');
     }
-    print (($config{'verbose'}) ? "\n" : (' 'x$config{'NodeOrder'}).'0') unless $config{'quiet'};
     
     my @zone;
-    { # Retrieve network nodes from file, pipe, or DNS (-D).
-        if (defined $config{'use_DNS'}) {
-            my $resolver = DNS;
-            $resolver->print if $config{'verbose'};
-            $config{'use_DNS'} = '([^.]+)' if $config{'use_DNS'} eq 'all';
-            foreach my $record ($resolver->axfr) {
-                push (@zone,$record->string) if $record->name =~ /^($config{'use_DNS'})\./;
+    given ($node_source) {
+        when ('DNS') {
+            unless (defined $config{'DNS'}) {
+                warn 'DNS has not been configured.';
+                return undef;
             }
+            if (defined $config{'DNS'}{'nameservers'}) {
+                $config{'DNS'}{'nameservers'} = (ref $config{'DNS'}{'nameservers'}) ?
+                                                     $config{'DNS'}{'nameservers'} :
+                                                    [$config{'DNS'}{'nameservers'}];
+            }
+            if (defined $config{'DNS'}{'searchlist'}) {
+                $config{'DNS'}{'searchlist'}  = (ref $config{'DNS'}{'searchlist'}) ?
+                                                     $config{'DNS'}{'searchlist'} :
+                                                    [$config{'DNS'}{'searchlist'}];
+            }
+            
+            my $resolver = Net::DNS::Resolver->new(%{$config{'DNS'}});
+            $resolver->print if $config{'Verbose'};
+            push (@zone,$_->string) foreach $resolver->axfr;
         }
-        else {
-            if ($config{'node_list'} eq '-') {
-                chomp (@zone = <>);
-            }
-            else {
-                open (my $node_list,'<',$config{'node_list'});
-                chomp (@zone = <$node_list>);
-                close $node_list;
-            }
+        when ('STDIN') {
+            chomp (@zone = <>);
+        }
+        default {
+            open (my $node_file,'<',$node_source);
+            chomp (@zone = <$node_file>);
+            close $node_file;
         }
     }
     
     my ($inactive_node_count,$deployed_device_count,$stack_count) = (0,0,0);
     foreach (@zone) {
-        if (/^(?<host>[^.]+).*\s(?:A|AAAA)\s+(?<ip>$RE{'net'}{'IPv4'}|$RE{'net'}{'IPv6'})/) {
+        if (/^(?<host>$host_pattern)\.(\S+\.)+\s+(\d+)\s+(\S+)\s+(?:A|AAAA)\s+(?<ip>$RE{'net'}{'IPv4'}|$RE{'net'}{'IPv6'})/) {
             $nodes->{$+{'ip'}}{'ip'} = $+{'ip'};
             my $node = $nodes->{$+{'ip'}};
             $node->{'hostname'} = $+{'host'};
+            $node->{'RFC1035'}  = $_;
             
             my $serial_count = probe $node;
             if ($serial_count < 1) {
@@ -383,19 +327,17 @@ sub discover {
                 $deployed_device_count += $serial_count;
                 ++$stack_count if $serial_count > 1;
                 
-                note ($config{'Probe1Cache'},$_,0,'>') if $config{'probe_level'} > 0;
-                
-                unless ($config{'quiet'} or $config{'verbose'}) {
-                    print  "\b"x$config{'NodeOrder'};
-                    printf ('%'.$config{'NodeOrder'}.'d',scalar keys %$nodes);
+                unless ($config{'Quiet'} or $config{'Verbose'}) {
+                    print  "\b"x$config{'DeviceOrder'};
+                    printf ('%'.$config{'DeviceOrder'}.'d',scalar keys %$nodes);
                 }
             }
         }
     }
     
-    unless ($config{'quiet'}) {
+    unless ($config{'Quiet'}) {
         my $node_count = scalar keys %$nodes;
-        print $node_count if $config{'verbose'};
+        print $node_count if $config{'Verbose'};
         print ' node';
         print 's' if $node_count != 1;
         print ' ('.$inactive_node_count.' inactive)' if $inactive_node_count > 0;
@@ -420,6 +362,16 @@ sub discover {
 
 
 
+=head2 identify $nodes
+
+=head3 Arguments
+
+=head4 nodes
+
+=head3 Example
+
+=cut
+
 sub synchronize {
     warn 'too few arguments' if @_ < 3;
     my ($nodes,$recognized,@rows) = @_;
@@ -434,7 +386,7 @@ sub synchronize {
             my $device = recognize_device ($nodes,$serial);
             unless (defined $device) {
                 note ($config{'DeviceLog'},$serial.' unidentified');
-                say $serial.' unidentified' if $config{'verbose'};
+                say $serial.' unidentified' if $config{'Verbose'};
                 next;
             }
             $recognized->{$serial} = $node = $device->{'node'};
@@ -442,7 +394,7 @@ sub synchronize {
         }
         
         my $device = $node->{'devices'}{$serial};
-        if ($config{'auto_match'} and not defined $device->{'interfaces'}{$ifName}) {
+        if ($config{'AutoMatch'} and not defined $device->{'interfaces'}{$ifName}) {
             foreach (sort keys %{$device->{'interfaces'}}) {
                 if (/[^0-9]$ifName$/) {
                     $ifName = $row->{$config{'InterfaceField'}} = $_;
@@ -465,25 +417,23 @@ sub synchronize {
                         $interface->{'info'}{$field} = $row->{$field};
                     }
                     
-                    interface_dump $interface if $config{'verbose'};
+                    interface_dump $interface if $config{'Verbose'};
                 }
             }
             else {
                 my $empty_field_count = 0;
                 foreach my $field (@{$config{'InfoFields'}}) {
-                    ++$empty_field_count unless $row->{$field} =~ /[\S]+/;
+                    ++$empty_field_count unless $row->{$field} =~ /\S+/;
                 }
                 if ($empty_field_count < @{$config{'InfoFields'}}) {
-                    if ($config{'probe_level'} > 1) {
-                        my $note = $serial.','.$ifName;
-                        foreach my $field (sort @{$config{'InfoFields'}}) {
-                            $note .= ','.($row->{$field} // ''); #/#XXX
-                        }
-                        note ($config{'UnidentifiedCache'},$note,0);
+                    my $note = $serial.','.$ifName;
+                    foreach my $field (sort @{$config{'InfoFields'}}) {
+                        $note .= ','.($row->{$field} // ''); #/#XXX
                     }
+                    note ($config{'UnidentifiedCache'},$note,0);
                 }
                 else {
-                    if ($config{'verbose'}) {
+                    if ($config{'Verbose'}) {
                         print 'An unidentified interface ('.$ifName.')';
                         print ' for '.$device->{'serial'};
                         print ' at '.$device->{'node'}{'ip'};
@@ -497,9 +447,6 @@ sub synchronize {
     }
     return $conflict_count;
 }
-
-
-
 
 sub resolve_conflicts {
     warn 'too few arguments'  if @_ < 1;
@@ -551,7 +498,7 @@ sub resolve_conflicts {
                                             $new = (choose ($message,\@choices) eq $choices[1]);
                                         }
                                         else {
-                                            say 'Duplicate interface ('.$ifName.') on '.$suffix if $config{'verbose'};
+                                            say 'Duplicate interface ('.$ifName.') on '.$suffix if $config{'Verbose'};
                                             
                                         }
                                         if ($new) {
@@ -569,7 +516,7 @@ sub resolve_conflicts {
                     }
                     else {
                         my $initialized = 0;
-                        unless ($config{'probe_level'} < 2 or $auto) {
+                        unless ($auto) {
                             say 'An unrecognized interface ('.$ifName.') has been detected on '.$serial.' at '.$ip.' ('.$node->{'hostname'}.') that is not present in the database.';
                             if (ask 'Would you like to initialize it now?') {
                                 say 'An interface ('.$ifName.') for '.$serial.' on '.$node->{'hostname'}.' is missing information.';
@@ -586,7 +533,7 @@ sub resolve_conflicts {
             }
             else {
                 my $initialized = 0;
-                unless ($config{'probe_level'} < 2 or $auto) {
+                unless ($auto) {
                     say 'An unrecognized device ('.$serial.') has been detected at '.$ip.' ('.$node->{'hostname'}.') that is not present in the database.';
                     if (ask 'Would you like to initialize it now?') {
                         open (STDIN,'<',POSIX::ctermid); #XXX
@@ -607,43 +554,53 @@ sub resolve_conflicts {
     }
 }
 
-
-=head2 identify $nodes
-
-a list of nodes to synchronize
-
-=head3 Arguments
-
-=head4 C<$nodes>
-
-an $ip => $node hash
-
-=head3 Example
-
-=over 4
-
-=item C<identify $nodes;>
-
-=back
-
-=cut
-
 sub identify {
-    warn 'too few arguments'  if @_ < 2;
+    warn 'too few arguments'  if @_ < 1;
     warn 'too many arguments' if @_ > 2;
-    my ($nodes,$data) = @_;
+    my ($nodes,$data_source) = @_;
+    $data_source //= 'DB'; #/#XXX
     
     my $fields = $config{'DeviceField'}.','.$config{'InterfaceField'};
     $fields .= ','.join (',',sort @{$config{'InfoFields'}});
+    note ($config{'UnidentifiedCache'},$fields,0,'>'); #XXX : how does this work?
     
-    print (($config{'verbose'}) ? "\n" : (' 'x$config{'NodeOrder'}).'0') unless $config{'quiet'};
+    unless ($config{'Quiet'}) {
+        print 'identifying (using '.$data_source).')...';
+        print (($config{'Verbose'}) ? "\n" : (' 'x$config{'DeviceOrder'}).'0');
+    }
     
-    
-    
-    { # Retrieve node interfaces from database.
-        
-        my $data;
-        if (defined $options{'use_CSV'}) {
+    my @data;
+    given ($data_source) {
+        when ('DB') {
+            unless (defined $config{'DB'}) {
+                warn 'A database has not been configured.';
+                return undef;
+            }
+            
+            my $DSN = 'dbi:'.$config{'DBMS'};
+            $DSN .= ':host='.$config{'Server'};
+            $DSN .= ';port='.$config{'Port'};
+            $DSN .= ';database='.$config{'Database'};
+            if (defined $config{'DB'}{'DSN'}) {
+                $config{'DB'}{'DSN'} = (ref $config{'DB'}{'DSN'}) ?
+                                            $config{'DB'}{'DSN'} :
+                                           [$config{'DB'}{'DSN'}];
+                $DSN .= ';'.$_ foreach @{$config{'DB'}{'DSN'}};
+            }
+            my $db = DBI->connect($DSN,$config{'Username'},$config{'Password'},{
+                'AutoCommit'         => $config{'AutoCommit'},
+                'PrintError'         => $config{'PrintError'},
+                'PrintWarn'          => $config{'PrintWarn'},
+                'RaiseError'         => $config{'RaiseError'},
+                'ShowErrorStatement' => $config{'ShowErrorStatement'},
+                'TraceLevel'         => $config{'TraceLevel'},
+            });
+            my $query = $db->prepare('SELECT '.$fields.' FROM '.$config{'Table'});
+            $query->execute;
+            $data = @{$query->fetchall_arrayref({})};
+            $db->disconnect;
+        }
+        default {
             open (my $db,'<',$options{'use_CSV'});
             
             my $parser = Text::CSV->new;
@@ -663,56 +620,38 @@ sub identify {
             foreach my $row (@{$parser->getline_hr_all($db)}) {
                 my $entry = {};
                 $entry->{$_} = $row->{$_} foreach @fields;
-                push (@$data,$entry);
+                push (@data,$entry);
             }
             
             close $db;
         }
-        else {
-            my $db = DB;
-            my $query = $db->prepare('SELECT '.$fields.' FROM '.$config{'Table'});
-            $query->execute;
-            $data = $query->fetchall_arrayref({});
-            $db->disconnect;
-        }
-        
-        unless ($options{'quiet'}) {
-            print 'identifying';
-            print ' (using '.($options{'use_CSV'} // $config{'DBMS'}).')...'; #/#XXX
-        }
-        
-        
     }
-    
-    
-    
-    note ($config{'UnidentifiedCache'},$fields,0,'>') if $config{'probe_level'} > 1;
     
     my $conflict_count = 0;
     {
         my %recognized; # $recognized{$serial} == $node
         
-        foreach my $row (@$data) {
+        foreach my $row (@data) {
             my $valid = [
                 $config{'DeviceField'},
                 $config{'InterfaceField'},
             ];
             my $invalid = 0;
             foreach my $field (@$valid) {
-                ++$invalid and last unless defined $row->{$field} and $row->{$field} =~ /[\S]+/;
+                ++$invalid and last unless defined $row->{$field} and $row->{$field} =~ /\S+/;
             }
             next if $invalid;
             
             $conflict_count += synchronize ($nodes,\%recognized,$row);
             
-            unless ($config{'quiet'} or $config{'verbose'}) {
-                print  "\b"x$config{'NodeOrder'};
-                printf ('%'.$config{'NodeOrder'}.'d',scalar keys %recognized);
+            unless ($config{'Quiet'} or $config{'Verbose'}) {
+                print  "\b"x$config{'DeviceOrder'};
+                printf ('%'.$config{'DeviceOrder'}.'d',scalar keys %recognized);
             }
         }
         
-        unless ($config{'quiet'}) {
-            print scalar keys %recognized if $config{'verbose'};
+        unless ($config{'Quiet'}) {
+            print scalar keys %recognized if $config{'Verbose'};
             print ' recognized';
             print ' ('.$conflict_count.' conflicts)' if $conflict_count > 0;
             print "\n";
@@ -723,27 +662,8 @@ sub identify {
         my $auto = ($conflict_count > 0);
         my $question = 'Do you want to resolve conflicts now';
         $question .= ($conflict_count > 0) ? '?' : ' (if any)?' ;
-        $auto = (not ask $question) unless $config{'quiet'};
+        $auto = (not ask $question) unless $config{'Quiet'};
         resolve_conflicts ($nodes,$auto);
-    }
-    
-    if ($config{'probe_level'} > 1) {
-        note ($config{'Probe2Cache'},$fields,0,'>');
-        foreach my $ip (sort keys %$nodes) {
-            my $node = $nodes->{$ip};
-            foreach my $serial (sort keys %{$node->{'devices'}}) {
-                my $device = $node->{'devices'}{$serial};
-                foreach my $ifName (sort keys %{$device->{'interfaces'}}) {
-                    my $interface = $device->{'interfaces'}{$ifName};
-                    
-                    my $note = $serial.','.$ifName;
-                    foreach my $field (sort @{$config{'InfoFields'}}) {
-                        $note .= ','.($interface->{'info'}{$field} // ''); #/#XXX
-                    }
-                    note ($config{'Probe2Cache'},$note,0);
-                }
-            }
-        }
     }
 }
 
@@ -761,15 +681,11 @@ push information to interfaces
 
 =head3 Arguments
 
-=head4 C<$nodes>
-
-an $ip => $node hash
+=head4 nodes
 
 =head3 Example
 
-=over 4
-
-=item C<update $nodes;>
+C<update $nodes;>
 
                            Table
  ---------------------------------------------------------
@@ -779,8 +695,6 @@ an $ip => $node hash
  |                          ...                          |           =============
  ---------------------------------------------------------                (device)
 
-=back
-
 =cut
 
 sub update {
@@ -788,9 +702,9 @@ sub update {
     warn 'too many arguments' if @_ > 1;
     my ($nodes) = @_;
     
-    unless ($config{'quiet'}) {
+    unless ($config{'Quiet'}) {
         print 'updating...';
-        print (($config{'verbose'}) ? "\n" : (' 'x$config{'NodeOrder'}).'0');
+        print (($config{'Verbose'}) ? "\n" : (' 'x$config{'DeviceOrder'}).'0');
     }
     
     my ($successful_update_count,$failed_update_count) = (0,0);
@@ -819,19 +733,19 @@ sub update {
                 $note .= ' '.$ifName.' ('.$interface->{'IID'}.')';
                 my $error = SNMP_set ($config{'SyncOID'},$interface->{'IID'},$update,$node->{'session'});
                 unless ($error) {
-                    $update =~ s/[\n]/,/g;
-                    $update =~ s/[\s]+//g;
+                    $update =~ s/\n/,/g;
+                    $update =~ s/\s+//g;
                     $update =~ s/:,/:(empty),/g;
                     note ($config{'UpdateLog'},$note.' '.$update);
                     ++$successful_update_count;
                     
-                    unless ($config{'quiet'}) {
-                        if ($config{'verbose'}) {
+                    unless ($config{'Quiet'}) {
+                        if ($config{'Verbose'}) {
                             interface_dump $interface;
                         }
                         else {
-                            print  "\b"x$config{'NodeOrder'};
-                            printf ('%'.$config{'NodeOrder'}.'d',$successful_update_count);
+                            print  "\b"x$config{'DeviceOrder'};
+                            printf ('%'.$config{'DeviceOrder'}.'d',$successful_update_count);
                         }
                     }
                 }
@@ -839,7 +753,7 @@ sub update {
                     note ($config{'UpdateLog'},$note.' error: '.$error);
                     ++$failed_update_count;
                     
-                    if ($config{'verbose'}) {
+                    if ($config{'Verbose'}) {
                         say interface_string ($interface).' failed';
                         say ((' 'x$config{'Indent'}).$error);
                     }
@@ -848,8 +762,8 @@ sub update {
         }
     }
     
-    unless ($config{'quiet'}) {
-        print $successful_update_count if $config{'verbose'};
+    unless ($config{'Quiet'}) {
+        print $successful_update_count if $config{'Verbose'};
         print ' successful';
         print ' ('.$failed_update_count.' failed)' if $failed_update_count > 0;
         print "\n";

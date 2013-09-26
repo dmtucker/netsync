@@ -21,14 +21,12 @@
     - DB cred. requirement bug fixed
     - Library module APIs are properly documented and defined.
     - new options: -u, -m
-    - removed options: -D
 
 2013-10-03 : 2.0.1
     - proper MIB dependencies documented
 
 2013-10-05 : 2.1.0 : Banana Oyster
     - new options: -M (vendor)
-    - modified parameters: [nodes[ ...]]
 
 2013-10-10 : 2.2.0 : Raspberry Oyster
     - run reports

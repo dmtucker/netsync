@@ -787,4 +787,42 @@ See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with netsync.
 If not, see L<http://www.gnu.org/licenses/>.
 
+=head1 ADDED SOON
+
+=over 2
+
+=item ProbeLevel
+
+Probe Levels
+
+=over 6
+
+=item 1 Probe the network for active nodes.
+
+=item 2 Probe the database for those nodes.
+
+=back
+
+Note: If the probe option is used, netsync will not complete execution entirely,
+and neither the devices nor the database will be modified.
+Instead, resources are created to aid in future runs of netsync.
+Probe functionality is broken into levels that correspond to netsync stages.
+Each level is accumulative (i.e. level 2 does level 1, too).
+
+default: 0
+
+=item Probe1Cache
+
+where probe level 1 RFC1035 output is stored
+
+default: F</var/cache/E<lt>script nameE<gt>/dns.txt>
+
+=item Probe2Cache
+
+where probe level 2 RFC4180 output is stored
+
+default: F</var/cache/E<lt>script nameE<gt>/db.csv>
+
+=back
+
 =cut
