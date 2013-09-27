@@ -8,13 +8,13 @@ use strict;
 use feature 'say';
 use feature 'switch';
 
+use DBI;
 use File::Basename;
+use Net::DNS;
 use POSIX;
 use Regexp::Common;
 use Text::CSV;
 
-use Configurator::DB;
-use Configurator::DNS;
 use Configurator::SNMP;
 use FileManager;
 use Netsync::Networker;
@@ -185,7 +185,7 @@ sub configure {
     $config{$_} = $Netsync->{$_} foreach keys %$Netsync;
     
     my $success = 1;
-    unless (Netsync::Configurator::SNMP::configure($SNMP,[
+    unless (Configurator::SNMP::configure($SNMP,[
         'IF-MIB','ENTITY-MIB',                                # standard
         'CISCO-STACK-MIB',                                    # Cisco
         'FOUNDRY-SN-AGENT-MIB','FOUNDRY-SN-SWITCH-GROUP-MIB', # Brocade
@@ -565,7 +565,7 @@ sub identify {
     note ($config{'UnidentifiedCache'},$fields,0,'>'); #XXX : how does this work?
     
     unless ($config{'Quiet'}) {
-        print 'identifying (using '.$data_source).')...';
+        print 'identifying (using '.$data_source.')...';
         print (($config{'Verbose'}) ? "\n" : (' 'x$config{'DeviceOrder'}).'0');
     }
     
@@ -597,11 +597,11 @@ sub identify {
             });
             my $query = $db->prepare('SELECT '.$fields.' FROM '.$config{'Table'});
             $query->execute;
-            $data = @{$query->fetchall_arrayref({})};
+            @data = @{$query->fetchall_arrayref({})};
             $db->disconnect;
         }
         default {
-            open (my $db,'<',$options{'use_CSV'});
+            open (my $db,'<',$data_source);
             
             my $parser = Text::CSV->new;
             chomp (my @fields = split (',',<$db>));
@@ -769,3 +769,22 @@ sub update {
         print "\n";
     }
 }
+
+
+=head1 AUTHOR
+
+David Tucker
+
+=head1 LICENSE
+
+This file is part of netsync.
+netsync is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+netsync is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details.
+You should have received a copy of the GNU General Public License along with netsync.
+If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
+
+1

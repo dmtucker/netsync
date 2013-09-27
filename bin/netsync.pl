@@ -88,12 +88,12 @@ INIT {
     { # Read and apply the configuration file.
         say 'configuring (using '.$options{'conf_file'}.')...' unless $options{'quiet'};
         %settings = configurate ($options{'conf_file'},{
-            $SCRIPT.'.Probe1Cache' => '/var/cache/'.$SCRIPT.'/dns.txt';
-            $SCRIPT.'.Probe2Cache' => '/var/cache/'.$SCRIPT.'/db.csv';
+            $SCRIPT.'.Probe1Cache' => '/var/cache/'.$SCRIPT.'/dns.txt',
+            $SCRIPT.'.Probe2Cache' => '/var/cache/'.$SCRIPT.'/db.csv',
         });
         Netsync::configure({
                 %{Configurator::config('Netsync')},
-                'AutoMatch'  => $options{'auto_match'},
+                'AutoMatch'  => $options{'auto_match'}, #XXX
                 'Quiet'      => $options{'quiet'},
                 'Verbose'    => $options{'verbose'},
             },
@@ -106,8 +106,7 @@ INIT {
 
 
 {
-    my $nodes;
-    $nodes = Netsync::discover($options{'node_file'},$options{'host_pattern'});
+    my $nodes = Netsync::discover($options{'node_file'},$options{'host_pattern'});
     if ($options{'probe_level'} == 1) {
         note ($settings{'Probe1Cache'},$nodes->{$_}{'RFC1035'},0,'>') foreach sort keys %$nodes;
         exit;
@@ -138,3 +137,22 @@ INIT {
     Netsync::update $nodes if $options{'update'};
     exit;
 }
+
+
+=head1 AUTHOR
+
+David Tucker
+
+=head1 LICENSE
+
+This file is part of netsync.
+netsync is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+netsync is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details.
+You should have received a copy of the GNU General Public License along with netsync.
+If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+
+
+1

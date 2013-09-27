@@ -54,6 +54,7 @@ Configurator - methods for handling configuration files and default settings
 
 
 our $VERSION = '1.0.0-alpha';
+our %config;
 
 
 =head1 DESCRIPTION
@@ -178,9 +179,9 @@ sub config {
     return $config{$group.'.'.$query} if defined $query;
     
     my $responses;
-    foreach (keys $config) {
+    foreach (keys %config) {
         if (/^(?<grp>[^.]*)\.(?<qry>.*)$/) {
-            $responses->{$qry} = $config{$_}) if $grp eq $group
+            $responses->{$+{'qry'}} = $config{$_} if $+{'grp'} eq $group;
         }
     }
     return $responses;
