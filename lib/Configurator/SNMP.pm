@@ -2,10 +2,6 @@
 
 package Configurator::SNMP;
 
-require Exporter;
-@ISA = (Exporter);
-@EXPORT = ('SNMP_get1','SNMP_set');
-
 use autodie;
 use strict;
 
@@ -45,12 +41,12 @@ Configurator::SNMP - methods for handling SNMP communications
  my $info1   = Configurator::SNMP::Info $ip;
  my $info2   = Configurator::SNMP::Info $session;
  
- my ($ifNames,$ifIIDs) = SNMP_get1 ([
+ my ($ifNames,$ifIIDs) = get1 ([
      ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],
      ['.1.3.6.1.2.1.2.2.1.2'    => 'ifDescr'],
  ],$session);
  
- SNMP_set ('ifAlias',$_,'Vote for Pedro',$session) foreach @$ifIIDs;
+ set ('ifAlias',$_,'Vote for Pedro',$session) foreach @$ifIIDs;
 
 =cut
 
@@ -253,7 +249,7 @@ sub Info {
 }
 
 
-=head2 SNMP_get1 (\@OIDs,$ip)
+=head2 get1 (\@OIDs,$ip)
 
 attempt to retrieve an OID from a provided list, stopping on success
 
@@ -269,7 +265,7 @@ an IP address to connect to or an SNMP::Session
 
 =head3 Example
 
- my ($ifNames,$ifIIDs) = SNMP_get1 ([
+ my ($ifNames,$ifIIDs) = get1 ([
      ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],
      ['.1.3.6.1.2.1.2.2.1.2'    => 'ifDescr'],
  ],'93.184.216.119');
@@ -278,7 +274,7 @@ Note: If ifName is unavailable, ifDescr will be tried.
 
 =cut
 
-sub SNMP_get1 {
+sub get1 {
     warn 'too few arguments'  if @_ < 2;
     warn 'too many arguments' if @_ > 2;
     my ($OIDs,$ip) = @_;
@@ -307,7 +303,7 @@ sub SNMP_get1 {
 }
 
 
-=head2 SNMP_set ($OID,$IID,$value,$ip)
+=head2 set ($OID,$IID,$value,$ip)
 
 attempt to set a new value on a device using SNMP
 
@@ -331,13 +327,13 @@ an IP address to connect to OR an SNMP::Session
 
 =head3 Example
 
- my ($ifIIDs) = SNMP_get1 ([['.1.3.6.1.2.1.2.2.1.1' => 'ifIndex']],'93.184.216.119');
+ my ($ifIIDs) = get1 ([['.1.3.6.1.2.1.2.2.1.1' => 'ifIndex']],'93.184.216.119');
  
- SNMP_set ('ifAlias',$_,'Vote for Pedro','93.184.216.119') foreach @$ifIIDs;
+ set ('ifAlias',$_,'Vote for Pedro','93.184.216.119') foreach @$ifIIDs;
 
 =cut
 
-sub SNMP_set {
+sub set {
     warn 'too few arguments'  if @_ < 4;
     warn 'too many arguments' if @_ > 4;
     my ($OID,$IID,$value,$ip) = @_;

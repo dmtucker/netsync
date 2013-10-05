@@ -15,3 +15,8 @@ netsync treats the asset management database as a prescripition for what it find
 Every once in a while (esp. around large network changes), check the NodeLog for entries that say 'no devices found'. These are active devices that do not support any of the OIDs that netsync checks. This is a simple fix in most cases.
 
 Release names are concatenations of a fruit and a mollusk.
+
+
+To Do:
+-get rid of %options in netsync.pl and AutoMatch in Netsync.pm
+-does .ini have a standard?

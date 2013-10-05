@@ -229,6 +229,179 @@ search the network for active nodes
 =cut
 
 
+=head2 device_interfaces ($vendor,$session)
+
+disocver all the devices and interfaces of a node
+
+=head3 Arguments
+
+=head4 C<$vendor>
+
+a return value of SNMP::Info::vendor
+
+Supported Vendors
+
+=over 5
+
+=item brocade
+
+=item cisco
+
+=item hp
+
+=back
+
+=head4 C<$session>
+
+an SNMP::Session object
+
+=head3 Example
+
+=over 3
+
+=item C<my $serial2if2ifName = device_interfaces ($node-E<gt>{'info'}-E<gt>vendor,$node-E<gt>{'session'});>
+
+C<$serial2if2ifName>
+
+ {
+   '1A2B3C4D5E6F' => {
+                       '1001' => 'ethernet1/1/1',
+                       '1002' => 'ethernet1/1/2',
+                       ...
+                     },
+   '2B3C4D5E6F7G' => {
+                       '2001' => 'ethernet2/1/1',
+                       '2002' => 'ethernet2/1/2',
+                       ...
+                     },
+   ...
+ }
+
+=back
+
+=cut
+
+sub device_interfaces {
+    warn 'too few arguments'  if @_ < 2;
+    warn 'too many arguments' if @_ > 2;
+    my ($vendor,$session) = @_;
+    
+    my %serial2if2ifName;
+    {
+        my %if2ifName;
+        {
+            my ($types) = Configurator::SNMP::get1 ([['.1.3.6.1.2.1.2.2.1.3' => 'ifType']],$session); # IF-MIB
+            my ($ifNames,$ifs) = Configurator::SNMP::get1 ([
+                ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],  # IF-MIB
+                ['.1.3.6.1.2.1.2.2.1.2'    => 'ifDescr'], # IF-MIB
+            ],$session); # IF-MIB
+            foreach my $i (keys @$ifs) {
+                unless (defined $types->[$i] and defined $ifNames->[$i]) {
+                    note (get_config ('general.Log'),'Malformed IF-MIB results have been received.');
+                    next;
+                }
+                $if2ifName{$ifs->[$i]} = $ifNames->[$i] if $types->[$i] =~ /^(?!1|24|53)[0-9]+$/;
+                if ($types->[$i] =~ /^(?!1|6|24|53)[0-9]+$/) {
+                    note (get_config ('general.Log'),'A foreign ifType ('.$types->[$i].') has been encountered on interface '.$ifNames->[$i]);
+                }
+            }
+        }
+        
+        my @serials;
+        {
+            my ($serials) = Configurator::SNMP::get1 ([['.1.3.6.1.2.1.47.1.1.1.1.11' => 'entPhysicalSerialNum']],$session); # ENTITY-MIB
+            if (defined $serials) {
+                my ($classes) = Configurator::SNMP::get1 ([['.1.3.6.1.2.1.47.1.1.1.1.5' => 'entPhysicalClass']],$session);  # ENTITY-MIB
+                foreach my $i (keys @$classes) {
+                    push (@serials,$serials->[$i]) if $classes->[$i] =~ /3/ and $serials->[$i] !~ /[^[:ascii:]]/;
+                }
+            }
+        }
+        unless (@serials > 0) {
+            my $serials;
+            given ($vendor) {
+                when ('cisco') {
+                    ($serials) = Configurator::SNMP::get1 ([
+                        ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # CISCO-STACK-MIB
+                        ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # CISCO-STACK-MIB
+                    ],$session);
+                }
+                when (['brocade','foundry']) {
+                    ($serials) = Configurator::SNMP::get1 ([
+                        ['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum'], # FOUNDRY-SN-AGENT-MIB?
+                        ['.1.3.6.1.4.1.1991.1.1.1.1.2'     => 'snChasSerNum'],     # FOUNDRY-SN-AGENT-MIB (stackless)
+                    ],$session);
+                }
+                when ('hp') {
+                    ($serials) = Configurator::SNMP::get1 ([
+                        ['.1.3.6.1.4.1.11.2.36.1.1.2.9'        => 'hpHttpMgSerialNumber'],       # SEMI-MIB
+                        #['.1.3.6.1.4.1.11.2.36.1.1.5.1.1.10'   => 'hpHttpMgDeviceSerialNumber'], # SEMI-MIB
+                        #['.1.3.6.1.4.1.11.2.3.7.11.12.1.1.1.2' => 'snChasSerNum'],               # HP-SN-AGENT-MIB (stackless?)
+                    ],$session);
+                }
+                default {
+                    note (get_config ('general.Log'),'Serial retrieval attempted on an unsupported device vendor ('.$vendor.')');
+                }
+            }
+            foreach my $serial (@$serials) {
+                push (@serials,$serial) if $serial !~ /[^[:ascii:]]/;
+            }
+        }
+        if (@serials == 0) {
+            note (get_config ('general.Log'),'No serials could be found for a '.$vendor.' device.');
+            return undef;
+        }
+        if (@serials == 1) {
+            $serial2if2ifName{$serials[0]} = \%if2ifName;
+        }
+        else {
+            my %if2serial;
+            given ($vendor) {
+                when ('cisco') {
+                    my ($port2if) = Configurator::SNMP::get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.11' => 'portIfIndex']],$session); # CISCO-STACK-MIB
+                    my @port2serial;
+                    {
+                        my ($port2module) = Configurator::SNMP::get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.1'  => 'portModuleIndex']],$session); # CISCO-STACK-MIB
+                        my %module2serial;
+                        {
+                            my ($serials,$modules) = Configurator::SNMP::get1 ([
+                                ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # CISCO-STACK-MIB
+                                ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # CISCO-STACK-MIB
+                            ],$session);
+                            @module2serial{@$modules} = @$serials;
+                        }
+                        push (@port2serial,$module2serial{$_}) foreach @$port2module;
+                    }
+                    @if2serial{@$port2if} = @port2serial;
+                }
+                when (['brocade','foundry']) {
+                    my ($port2if) = Configurator::SNMP::get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.38' => 'snSwPortIfIndex']],$session); # FOUNDRY-SN-SWITCH-GROUP-MIB
+                    my @port2serial;
+                    {
+                        my ($port2umi) = Configurator::SNMP::get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.39' => 'snSwPortDescr']],$session); # FOUNDRY-SN-SWITCH-GROUP-MIB
+                        my %module2serial;
+                        {
+                            my ($serials,$modules) = Configurator::SNMP::get1 ([['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum']],$session); # FOUNDRY-SN-AGENT-MIB?
+                            @module2serial{@$modules} = @$serials;
+                        }
+                        foreach (@$port2umi) {
+                            push (@port2serial,$module2serial{$+{'unit'}}) if m{^(?<unit>[0-9]+)(/[0-9]+)+$};
+                        }
+                    }
+                    @if2serial{@$port2if} = @port2serial;
+                }
+                default {
+                    note (get_config ('general.Log'),'Interface mapping attempted on an unsupported device vendor ('.$vendor.')');
+                }
+            }
+            foreach my $if (keys %if2serial) {
+                $serial2if2ifName{$if2serial{$if}}{$if} = $if2ifName{$if};
+            }
+        }
+    }
+    return \%serial2if2ifName;
+}
+
 sub probe {
     my (@nodes) = @_;
     
@@ -251,7 +424,7 @@ sub probe {
             if (defined $serial2if2ifName) {
                 my @serials = keys %$serial2if2ifName;
                 note ($config{'NodeLog'},node_string ($node).' '.join (' ',@serials));
-                initialize_node ($node,$serial2if2ifName);
+                node_initialize ($node,$serial2if2ifName);
                 $serial_count += @serials;
             }
             else {
@@ -362,7 +535,7 @@ sub discover {
 
 
 
-=head2 identify $nodes
+=head2 identify ($nodes[,$data_source[,$auto_match]])
 
 =head3 Arguments
 
@@ -383,7 +556,7 @@ sub synchronize {
         
         my $node = $recognized->{$serial};
         unless (defined $node) {
-            my $device = recognize_device ($nodes,$serial);
+            my $device = device_recognize ($nodes,$serial);
             unless (defined $device) {
                 note ($config{'DeviceLog'},$serial.' unidentified');
                 say $serial.' unidentified' if $config{'Verbose'};
@@ -556,9 +729,10 @@ sub resolve_conflicts {
 
 sub identify {
     warn 'too few arguments'  if @_ < 1;
-    warn 'too many arguments' if @_ > 2;
-    my ($nodes,$data_source) = @_;
+    warn 'too many arguments' if @_ > 3;
+    my ($nodes,$data_source,$auto_match) = @_;
     $data_source //= 'DB'; #/#XXX
+    $auto_match  //= 0; #/#XXX
     
     my $fields = $config{'DeviceField'}.','.$config{'InterfaceField'};
     $fields .= ','.join (',',sort @{$config{'InfoFields'}});

@@ -4,35 +4,35 @@ netsync - network/database utility
 
 =head1 SYNOPSIS
 
-C<netsync [-hVvqcpDda] [nodes]>
+C<netsync [-hVvqcpDmdau] [nodes]>
 
 =head1 DESCRIPTION
 
 netsync is a network synchronization tool that:
 
- - maps network interfaces to their respective (potentially stacked) devices>
- - gathers interface-specific information from an asset management database>
- - sends the information it gathers to each device>
+ - maps network interfaces to their respective (potentially stacked) devices
+ - gathers interface-specific information from an asset management database
+ - sends the information it gathers to each device
+ - provides ways of producing useful information about the network
 
-Note: All communication with network nodes is done using SNMP,
-      and the database is assumed to track devices by serial number.
-
-netsync also provides ways of producing useful information about the network.
+Note: All communication with network nodes is done using SNMP.
 
 =head2 Overview
 
-Execution begins with the parsing of the configuration file (-c).
-netsync discovers active network devices listed in [nodes] or DNS.
-It uses gathered information to identify each device in a provided database.
-Identified devices are then updated unless probing is used.
+In a typical run, execution begins by parsing a configuration file (-c).
+Next, netsync searches for active network devices at each node.
+Nodes may be specified using [nodes], DNS (-D), or standard input (STDIN).
+Furthermore, nodes may be required to match a hostname pattern (-m).
+Gathered information may be used to identify each device in a database.
+Identified devices may then be updated (-u) with interface-specific information.
 
-See F</usr/share/netsync/netsync.svg> for corresponding visual guidance.
+See F</usr/share/netsync/algorithm.svg> for corresponding visual guidance.
 
 =head2 0 Invocation
 
-=head3 Suggested Method
+=head3 Suggested Method #XXX : what about Build.PL
 
-netsync may be installed and removed using the same provided script, F<netsync.sh>.
+netsync may be installed or removed using the same script, F<netsync.sh>.
 
  $ netsync.sh install
 
@@ -40,29 +40,32 @@ Z<>
 
  $ netsync.sh remove
 
-It is then advised that netsync be run as a cron job daily or weekly.
-That is how is was designed to be used.
+It is advised that netsync be run as a cron job periodically.
 
 =head3 Perl
 
 It is simple to invoke the Perl implementation manually.
 The easiest way is to use the provided script, F<neysync.sh>.
 If the first argument to the script is not "install" or "remove",
-it will assume the arguments are options and parameters intended for netsync.
+it will assume the arguments are options and parameters to be passed to netsync.
 
  $ netsync.sh --help
 
-Note: This feature of F<netsync.sh> will work whether netsync has been installed or not.
+Note: This feature should work whether netsync has been installed or not.
 
-=head4 Libraries
+=head4 Libraries #XXX : appropriate name?
 
 =over 5
 
-=item Netsync::Configurator
+=item Configurator
 
 methods for handling configuration files and default settings
 
-=item Netsync::FileManager
+=item Configurator::SNMP
+
+methods for handling SNMP communications
+
+=item FileManager
 
 methods for handling I/O automatically and efficiently
 
@@ -72,7 +75,7 @@ methods for manipulating netsync's internal view of a network
 
 =item Netsync::UI
 
-methods for interacting with the user
+methods for interacting with a user
 
 =back
 
@@ -88,200 +91,162 @@ methods for interacting with the user
 
 Help. Print usage and options.
 
-Note: Help and Version print information and exit, netsync is not executed in either case.
+Note: Help and Version print information and exit.
+      Normal execution is skipped when either of these options are used.
 
 =head4 -V
 
 Version. Print build information.
 
-Note: Help and Version print information and exit, netsync is not executed in either case.
+Note: Help and Version print information and exit.
+      Normal execution is skipped when either of these options are used.
 
 =head4 -v
 
 Verbose. Print everything.
 
-Note: If both Quiet and Verbose mode are used simultaneously, they cancel each other out.
+Note: If Quiet and Verbose mode are used simultaneously, they cancel out.
 
 =head4 -q
 
 Quiet. Print nothing.
 
-Note: If both Quiet and Verbose mode are used simultaneously, they cancel each other out.
+Note: If Quiet and Verbose mode are used simultaneously, they cancel out.
 
 =head4 -c .ini
 
-Specify a configuration file to use. (default: F</etc/netsync/netsync.ini>)
+Config. Specify a configuration file to use. (default: F</etc/netsync/netsync.ini>)
 
 =head4 -p #
 
-Probe. There are 2 probe levels:
+Probe. There are 2 Probe levels:
 
  1: Probe the network for active nodes.
  2: Probe the database for those nodes.
 
-See Description 6 Probe Level 1 for more.
+If the Probe option is used, resources will be created to aid in future runs.
 
-=head4 -D pattern
+Note: Each level corresponds to a stage of execution and is accumulative.
 
-Use DNS to retrieve a list of hosts matching the pattern.
-Use the pattern 'all' to turn off the hostname filter.
+=head4 -D
+
+DNS. Use your network's domain name system to retrieve a list of nodes.
+
+=head4 -m pattern
+
+Match. Only discover nodes with hostnames matching the given pattern.
 
 =head4 -d .csv
 
-Specify an RFC4180-compliant database file to use.
+Database. Specify an RFC4180-compliant database file to use.
 
 =head4 -a
 
-Enable interface auto-matching.
+Automatch. Enable interface auto-matching.
 
 Note: Interface auto-matching is very likely to be helpful if the database manages interfaces numerically.
-If enabled, it causes a database port such as 23 to align with ifNames such as ethernet23 or Gi1/0/23.
+      If enabled, it causes a database port such as 23 to align with ifNames such as ethernet23 or Gi1/0/23.
+
+=head4 -u
+
+Update. Send interface-specific information to network nodes.
 
 =head3 Parameters
 
 =head4 [nodes]
 
-Specify an RFC1035-compliant network node list to use.
+Nodes. Specify an RFC1035-compliant list of network nodes to use.
 
-Note: Either -D pattern or nodes must be specified.
-If neither are present, input will be read from standard input (a pipe or the keyboard).
+Note: If neither DNS (-D) nor Nodes ([nodes]) are specified,
+      input will be read from standard input (STDIN).
 
 =head2 2 Settings
 
-A configuration file may be specified using the -c option.
-Otherwise, a generic configuration file (/etc/netsync/netsync.ini) is provided,
+A configuration file may be specified using the Config (-c) option.
+Otherwise, a generic configuration file (F</etc/netsync/netsync.ini>) is used,
 but it does not have enough information for netsync to be fully functional out-of-the-box.
-Namely, the following settings must be provided for a sufficient runtime environment:
+Namely, the following settings must be provided for a typical runtime environment:
 
 =head3 DNS
 
-Note: DNS settings are not necessary if only RFC1035-compliant node lists will be used (see [nodes]).
+Note: DNS settings are not necessary if only Nodes ([nodes]) will be used.
 
-=head4 domain
+=over 4
 
-a FQDN e.g. example.com
+=item domain
+
+LAN domain name (e.g. example.com)
+
+=back
 
 =head3 SNMP
 
-=head4 Version
+=head4 Required
 
-Note: netsync should work out-of-the-box on a network with default SNMP settings,
-      but it is not recommended to operate a network with such an insecure configuration.
+=over 4
+
+=item Version
+
+Note: SNMP settings are not necessary if a default SNMP environment is used;
+      however, this is HIGHLY insecure and discouraged.
 
 =over 5
 
 =item SNMPv3 (recommended)
 
- SecLevel  - (If this is left default, there isn't much benefit to using SNMPv3 over v2.)
- SecName   - username (default: initial)
- AuthPass  - the authentication (access) key
- PrivPass  - the privacy (encryption) key
+=over 6
+
+=item SecLevel
+
+the level of security to deploy (default: noAuthNoPriv)
+
+It may be one of the following:
+
+=over 7
+
+=item noAuthNoPriv
+
+This causes SNMPv3 to mimic v2!
+
+=item authNoPriv
+
+=item authPriv
+
+=back
+
+=item SecName
+
+username (default: initial)
+
+=item AuthPass
+
+the access (authentication) key
+
+=item PrivPass
+
+the privacy (encryption) key
+
+=back
 
 =item SNMPv2
 
- Community - The SNMP community to address (default: public).
+=over 6
+
+=item Community
+
+the SNMP community to address (default: public).
 
 =back
 
-=head3 DB
+=back
 
-Note: DB settings are not necessary if only RFC4180-compliant database (.csv) files will be used (see -d).
-
-=head4 DBMS
-
-the type of database e.g. Oracle
-
-=head4 Server
-
-the database location
-
-=head4 Port
-
-the database location
-
-=head4 Database
-
-the name of the database
-
-=head4 DSN
-
-DBMS-specific connection details
-
-=head4 Username
-
-the name of a user that has access to the database
-
-=head4 Password
-
-the authentication key of the user
-
-=head3 netsync
-
-                           Table
- ---------------------------------------------------------
- |  DeviceField  |  InterfaceField  |  InfoFields...     |
- ---------------------------------------------------------           =============
- |   (serial)    |     (ifName)     |(interface-specific)|   --->    || SyncOID ||
- |                          ...                          |           =============
- ---------------------------------------------------------                (device)
-
-Note: Once netsync has identified an interface in the database with its corresponding interface on the network,
-      it will overwrite the device with the InfoFields in the database.
-
-=head4 Table
-
-the name of the table in the database that contains the following fields
-
-=head4 DeviceField
-
-the field that provides a unique ID for each device
-
-=head4 InterfaceField
-
-the field that holds interface names retrieved from the IF-MIB (ifName) via SNMP
-
-=head4 InfoFields
-
-a comma-separated list of fields containing interface-specific information
-
-=head4 SyncOID
-
-Values from InfoFields will be concatenated (respectively) and stored in the device via SNMP.
-
-
-=head3 Optional
-
-Explanation of each log and cache file will be provided in context below.
-
-=head4 Indent
-
-a formatting option to specify the number of spaces to proceed details of a previous line 
-
-=head4 NodeOrder
-
-a formatting option to adapt discovered node counts to any size network (must be > 0)
-
-Example
+Optional
 
 =over 5
 
-=item NodeOrder = 3 (nodes < 1000), 780 nodes
+=item MIBdir (SNMP)
 
- > discovering (using DNS)... 780 nodes (50 inactive), 800 devices (10 stacks)
-
-=item NodeOrder = 9 (nodes < 1000000000), 780 nodes
-
- > discovering (using DNS)...       780 nodes (50 inactive), 800 devices (10 stacks)
-
-=item NodeOrder = 1 (nodes < 10), 24 nodes !
-
- > discovering (using DNS)... 1111111111222224 nodes (5 inactive), 26 devices (1 stack)
-
-=back
-
-=head4 MIBdir
-
-the location of MIBs required by netsync
+the location of required MIBs (default: F</usr/lib/netsync/mib/>)
 
 Requirements
 
@@ -325,12 +290,119 @@ Requirements
 
 =back
 
+=back
+
+=back
+
+=head3 DB
+
+Note: DB settings are not necessary if only Database (-d) will be used.
+
+=over 4
+
+=item DBMS
+
+the type of database (i.e. a Perl DBD, e.g. Pg, mysql, Oracle, etc.).
+
+=item Server
+
+the database network location
+
+=item Port
+
+the database transport location
+
+=item Database
+
+the name of the database to use
+
+=item Username
+
+the name of a user that has access to the database
+
+=item Password
+
+the authentication key of the user
+
+=back
+
+=head3 netsync
+
+Note: netsync settings are specific to F</usr/bin/netsync> only.
+
+Synopsis
+
+                           Table
+ ---------------------------------------------------------
+ |  DeviceField  |  InterfaceField  |  InfoFields...     |
+ ---------------------------------------------------------           =============
+ |   (serial)    |     (ifName)     |(interface-specific)|   --->    || SyncOID ||
+ |                          ...                          |           =============
+ ---------------------------------------------------------                (device)
+
+Note: Once netsync has identified an interface in the database,
+      it will overwrite the device with the corresponding InfoFields.
+
+=over 4
+
+=item Table
+
+the name of the table in the database that contains the following fields
+
+=item DeviceField
+
+the field that provides a unique ID for each device (typically a serial number)
+
+=item InterfaceField
+
+the field that holds interface names retrieved from the IF-MIB (ifName) via SNMP
+
+=item InfoFields
+
+a comma-separated list of fields containing interface-specific information
+
+=item SyncOID
+
+Values from InfoFields will be concatenated and stored in the device at this MIB location via SNMP.
+
+=back
+
+Note: Explanation of each log and cache file will be provided in context below. #XXX
+
+
+The following settings are not required.
+They are included for clarity of purpose.
+
+=over 4
+
+=item NodeOrder (netsync)
+
+a formatting option to adapt discovered node counts to any size network (must be > 0)
+
+Example
+
+=over 5
+
+=item NodeOrder = 3 (nodes < 1000), 500 nodes
+
+ > discovering (using DNS)... 500 nodes (50 inactive), 600 devices (50 stacks)
+
+=item NodeOrder = 9 (nodes < 1000000000), 500 nodes
+
+ > discovering (using DNS)...       500 nodes (50 inactive), 600 devices (50 stacks)
+
+=item NodeOrder = 1 (nodes < 10), 20 nodes !
+
+ > discovering (using DNS)... 111111111120 nodes (2 inactive), 24 devices (2 stacks)
+
+=back
+
 =head2 3 Data Structures
 
-netsync builds an internal view of the network whenever it is run.
+Netsync builds an internal view of the network whenever it is used.
 Each node is associated with its IP address and device(s).
-Each device is associated with is serial and interface(s).
-Each interface is associated with interface-specific information from the database.
+Each device is associated with its serial number and interface(s).
+Each interface is associated with its ifName and interface-specific information from the database.
 
 The resulting data structure could be described as a list of trees.
 
@@ -610,12 +682,6 @@ Note: netsync assumes unit/module/interface (U/M/I) definitively maps unit to mo
 =back
 
 =head2 6 Probe Level 1
-
-If the probe option is used, netsync will not complete execution entirely,
-and neither the devices nor the database will be modified.
-Instead, resources are created to aid in future runs of netsync.
-Probe functionality is broken into levels that correspond to netsync stages.
-Each level is accumulative (i.e. level 2 does level 1, too).
 
 Probe level 1 is specified using -p1 and updates Probe1Cache.
 

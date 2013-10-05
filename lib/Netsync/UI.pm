@@ -16,7 +16,7 @@ use POSIX;
 
 =head1 NAME
 
-Netsync::UI - methods for interacting with the user
+Netsync::UI - methods for interacting with a user
 
 =head1 SYNOPSIS
 
