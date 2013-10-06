@@ -1,0 +1,847 @@
+=head1 NAME
+
+netsync - network/database utility
+
+=head1 SYNOPSIS
+
+ netsync [-hVvqcpDmdau] [nodes]
+
+=head1 DESCRIPTION
+
+netsync is a network synchronization tool that:
+
+ - maps network interfaces to their respective (potentially stacked) devices
+ - gathers interface-specific information from an asset management database
+ - sends the information it gathers to each device
+ - provides ways of producing useful information about the network
+
+Note: All communication with network nodes is done using SNMP.
+
+=head2 Overview
+
+In a typical run, execution begins by parsing a configuration file (-c).
+Next, netsync searches for active network devices at each node.
+Nodes may be specified using [nodes], DNS (-D), or standard input (STDIN).
+Furthermore, nodes may be required to match a hostname pattern (-m).
+Gathered information may be used to identify each device in a database.
+A database may be specified using Database (-d) or DB in the configuration file.
+Identified devices may then be updated (-u) with interface-specific information.
+
+See F<doc/algorithm.svg> for corresponding visual guidance
+(F</usr/share/netsync/algorithm.svg> after installation).
+
+=head2 0 Invocation
+
+=head3 Suggested Method
+
+ #XXX : what about Build.PL
+
+netsync may be installed or removed using the same script, F<netsync.sh>.
+
+ $ netsync.sh install
+
+Z<>
+
+ $ netsync.sh remove
+
+It is advised that netsync be run as a cron job periodically.
+
+=head3 Perl
+
+It is simple to invoke the Perl implementation manually.
+The easiest way is to use the provided script, F<neysync.sh>.
+If the first argument to the script is not "install" or "remove",
+it will assume the arguments are options and parameters to be passed to netsync.
+
+ $ netsync.sh --help
+
+Note: This feature should work whether netsync has been installed or not.
+
+=head4 Libraries
+
+The following libraries are included with netsync in F<lib>:
+
+=over 5
+
+=item Configurator
+
+methods for handling configuration files and default settings
+
+=item Configurator::SNMP
+
+methods for handling SNMP communications
+
+=item FileManager
+
+methods for handling I/O automatically and efficiently
+
+=item Netsync::Networker
+
+methods for manipulating netsync's internal view of a network
+
+=item Netsync::UI
+
+methods for interacting with a user
+
+=back
+
+=head4 Manual Method
+
+ $ perl -I lib bin/netsync.pl
+
+=head2 1 Runtime Configuration
+
+=head3 Options
+
+=over 4
+
+=item -h --help
+
+Help. Print usage and options.
+
+Note: Help and Version print information and exit.
+      Normal execution is skipped when either of these options are used.
+
+=item -V
+
+Version. Print build information.
+
+Note: Help and Version print information and exit.
+      Normal execution is skipped when either of these options are used.
+
+=item -v
+
+Verbose. Print everything.
+
+Note: If Quiet and Verbose mode are used simultaneously, they cancel out.
+
+=item -q
+
+Quiet. Print nothing.
+
+Note: If Quiet and Verbose mode are used simultaneously, they cancel out.
+
+=item -c .ini
+
+Config. Specify a configuration file (default: F</etc/netsync/netsync.ini>).
+
+=item -p #
+
+Probe. There are 2 Probe levels:
+
+ 1: Probe the network for active nodes.
+ 2: Probe the database for those nodes.
+
+If the Probe option is used, resources will be created to aid in future runs.
+
+Note: Each level corresponds to a stage of execution and is accumulative.
+
+=item -D
+
+DNS. Use your network's domain name system to retrieve a list of nodes.
+
+Note: If neither DNS (-D) nor Nodes ([nodes]) are specified,
+      input will be read from standard input (STDIN).
+
+=item -m pattern
+
+Match. Only discover nodes with hostnames matching the given pattern.
+
+=item -d .csv
+
+Database. Specify an RFC4180-compliant database file.
+
+=item -a
+
+Automatch. Enable interface auto-matching.
+
+Note: Automatch will be helpful if the database manages interfaces numerically.
+      It aligns numerical ports (e.g. 23) in the database 
+      with ifNames (e.g. ethernet23 or Gi1/0/23) on the device.
+
+=item -u
+
+Update. Send interface-specific information to network nodes.
+
+=back
+
+=head3 Parameters
+
+=over 4
+
+=item [nodes]
+
+Nodes. Specify an RFC1035-compliant list of network nodes.
+
+Note: If neither DNS (-D) nor Nodes ([nodes]) are specified,
+      input will be read from standard input (STDIN).
+
+=back
+
+=head2 2 Settings
+
+A configuration file may be specified using the Config (-c) option.
+Otherwise, a generic configuration file (F</etc/netsync/netsync.ini>) is used,
+but it will most likely require additional information before running netsync.
+Namely, the following settings must be provided for a typical installation:
+
+=head3 Net::DNS
+
+Note: Net::DNS settings are not necessary if only Nodes ([nodes]) will be used.
+
+=over 4
+
+=item domain
+
+LAN domain name (e.g. example.com)
+
+=back
+
+=head3 SNMP::Info
+
+Required
+
+=over 4
+
+=item Version
+
+Note: SNMP settings are not necessary if a default SNMP environment is used;
+      however, this is HIGHLY insecure and discouraged.
+
+=over 5
+
+=item SNMPv3 (recommended)
+
+=over 6
+
+=item SecLevel
+
+the level of security to deploy (default: noAuthNoPriv)
+
+It may be one of the following:
+
+=over 7
+
+=item noAuthNoPriv
+
+This causes SNMPv3 to mimic v2!
+
+=item authNoPriv
+
+=item authPriv
+
+=back
+
+=item SecName
+
+username (default: initial)
+
+=item AuthPass
+
+the access (authentication) key
+
+=item PrivPass
+
+the privacy (encryption) key
+
+=back
+
+=item SNMPv2
+
+=over 6
+
+=item Community
+
+the SNMP community to address (default: public).
+
+=back
+
+=back
+
+=back
+
+Optional
+
+=over 4
+
+=item MIBdir (SNMP)
+
+the location of required MIBs (default: F</usr/lib/netsync/mib/>)
+
+Requirements
+
+=over 5
+
+=item standard
+
+=over 6
+
+=item IF-MIB
+
+=item ENTITY-MIB
+
+=back
+
+=item Cisco
+
+=over 6
+
+=item CISCO-STACK-MIB
+
+=back
+
+=item Brocade
+
+=over 6
+
+=item FOUNDRY-SN-AGENT-MIB
+
+=item  FOUNDRY-SN-SWITCH-GROUP-MIB
+
+=back
+
+=item HP
+
+=over 6
+
+=item SEMI-MIB
+
+=back
+
+=back
+
+=back
+
+=head3 DBI
+
+Note: DBI settings are not necessary if only Database (-d) will be used.
+
+=over 4
+
+=item DBMS
+
+the type of database (i.e. a Perl DBD, e.g. Pg, mysql, Oracle, etc.).
+
+=item Server
+
+the database network location
+
+=item Port
+
+the database transport location
+
+=item Database
+
+the name of the database to use
+
+=item Username
+
+the name of a user that has access to the database
+
+=item Password
+
+the authentication key of the user
+
+=back
+
+=head3 Netsync
+
+Synopsis
+
+                           Table
+ ---------------------------------------------------------
+ |  DeviceField  |  InterfaceField  |  InfoFields...     |
+ ---------------------------------------------------------         =============
+ |   (serial)    |     (ifName)     |(interface-specific)|  --->   || SyncOID ||
+ |                          ...                          |         =============
+ ---------------------------------------------------------              (device)
+
+Note: Once netsync has identified an interface in the database,
+      it will overwrite the device with the corresponding InfoFields.
+
+=over 4
+
+=item Table
+
+the name of the table in the database that contains the following fields
+
+=item DeviceField
+
+the field that provides a unique ID for each device (typically a serial number)
+
+=item InterfaceField
+
+the field that holds interface names retrieved from the IF-MIB (ifName) via SNMP
+
+=item InfoFields
+
+a comma-separated list of fields containing interface-specific information
+
+=item SyncOID
+
+the MIB location to store interface-specific information via SNMP
+
+=back
+
+=head2 3 Data Structures
+
+Netsync builds an internal view of the network whenever it is used.
+Each node is associated with its IP address and device(s).
+Each device is associated with its serial number and interface(s).
+Each interface is associated with its ifName and interface-specific information.
+
+The resulting data structure could be described as a list of trees.
+
+ |-> node (IP)
+ |-> node (IP)
+ |-> node (IP)
+ |                              -interface (ifName)
+ |                             /
+ |             -device (serial)--interface (ifName)
+ |            /                \
+ |-V node (IP)                  -interface (ifName)
+ |            \
+ |             -device (serial)--interface (ifName)
+ |                             \
+ |                              -interface (ifName)
+ |-> node (IP)
+ |-> node (IP)
+ |                              -interface (ifName)
+ |                             /
+ |-V node (IP)--device (serial)--interface (ifName)
+ |                             \
+ |                              -interface (ifName)
+ |-> node (IP)
+ |-> node (IP)
+ |-> node (IP)
+ |-> node (IP)
+ ...
+
+=head3 States
+
+=over 4
+
+=item Nodes
+
+       active : reachable and responsive
+     inactive : unreachable or unresponsive
+
+=item Devices & Interfaces
+
+   recognized : found on the network and in the database
+ unrecognized : found on the network but not in the database
+   identified : found in the database and on the network
+ unidentified : found in the database but not on the network
+
+=back
+
+=head4 Invariants
+
+              active <-> !inactive
+          recognized <-> identified
+ unrecognized device --> unrecognized interfaces
+ unidentified device --> unidentified interfaces
+
+=head2 4 Discovery
+
+The first task netsync has is to find all relevant nodes on the network.
+Relevant nodes are specified one of three ways:
+
+=over 3
+
+=item DNS (-D)
+
+A zone transfer is filtered by Netsync,
+and a list of A or AAAA records with valid IPv4 or IPv6 addresses is produced.
+
+ $ netsync -D
+
+=item Nodes ([nodes])
+
+[nodes] is a path to a file containing an RFC1035-compliant list of nodes.
+
+ $ netsync -Dqp1
+ $ netsync /var/cache/netsync/dns.txt
+
+=item standard input (e.g. pipe or keyboard)
+
+If neither -D nor [nodes] is present, a node list is pulled from standard input.
+This allows pipelining with other utilities for extended functionality.
+
+ $ dig axfr example.com | grep hub123 | netsync
+
+Z<>
+
+ $ cat superset.txt | grep hub[0-9]+ | netsync
+
+=back
+
+Note: Match (-m) may be used with any of the methods above.
+
+ $ netsync -Dqm "(sw|hub)[0-9]+"
+
+Z<>
+
+ $ netsync -Dqp1
+ $ netsync -qm "(sw|hub)[0-9]+" /var/cache/netsync/dns.txt
+
+Z<>
+
+ $ dig axfr example.com | netsync -m "(sw|hub)[0-9]+"
+
+Z<>
+
+ www.example.com            <-- no match (www)
+ hub123.example.com         <-- match (hub123)
+ sw1234.example.com         <-- match (sw1234)
+ ...
+
+=head3 About RFC1035
+
+RFC1035 (3.2.1) specifies a format for resource records served by name servers.
+Thus, for compatibility reasons, this application is RFC1035-compliant.
+
+ name.            ttl class type address
+ www.example.com. 300 IN    A    93.184.216.119
+ www.example.com. 300 IN    AAAA 2606:2800:220:6d:26bf:1447:1097:aa7
+ ...
+
+=head2 5 Node Processing
+
+netsync must attempt to contact each specified node to see if it is active.
+Any node that netsync attempts to contact is logged in NodeLog.
+If a node is active, netsync will try to retrieve its device serial number(s).
+If multiple devices are discovered,
+netsync will try to map each interface to its device (serial).
+
+Note: Only ASCII serials are supported.
+
+=head3 Supported Vendors
+
+=over 4
+
+=item Devices
+
+=over 5
+
+=item Brocade
+
+=item Cisco
+
+=item HP
+
+=back
+
+=item Stacks
+
+=over 5
+
+=item Brocade
+
+=item Cisco
+
+=back
+
+=back
+
+=head3 Interface Mapping
+
+=over 4
+
+=item 1 Extract interfaces.
+
+=over 5
+
+=item 1 ifType (1.3.6.1.2.1.2.2.1.3)
+
+Interfaces with the follwing ifTypes are excluded:
+
+=over 6
+
+=item 1 other
+
+=item 24 softwareLoopback
+
+=item 53 propVirtual
+
+=back
+
+=item 2 ifName (1.3.6.1.2.1.31.1.1.1)
+
+Note: ifDescr (1.3.6.1.2.1.2.2.1.2) may be an alternate.
+
+=back
+
+=item 2 Extract serials.
+
+=over 5
+
+=item standard
+
+=over 6
+
+=item 1 entPhysicalClass (1.3.6.1.2.1.47.1.1.1.1.5)
+
+Entities with the following entPhysicalClass are included:
+
+=over 7
+
+=item 3 chassis
+
+=back
+
+=item 2 entPhysicalSerialNum (1.3.6.1.2.1.47.1.1.1.1.11)
+
+=back
+
+=item proprietary
+
+=over 6
+
+=item Brocade
+
+ snChasUnitSerNum : 1.3.6.1.4.1.1991.1.1.1.4.1.1.2
+
+Note snChasSerNum (1.3.6.1.4.1.1991.1.1.1.1.2) may be an alternate;
+     however, it does NOT support stacks.
+
+=item Cisco
+
+ moduleSerialNumber : 1.3.6.1.4.1.9.5.1.3.1.1.3
+
+Note: moduleSerialNumberString (1.3.6.1.4.1.9.5.1.3.1.1.26) may be an alternate.
+
+=item HP
+
+ hpHttpMgSerialNumber : 1.3.6.1.4.1.11.2.36.1.1.2.9
+
+=back
+
+=back
+
+=item 3 Map interfaces to serials.
+
+=over 5
+
+=item standard
+
+UNKNOWN
+
+=item proprietary
+
+=over 6
+
+=item Cisco
+
+=over 7
+
+=item 1 portIfIndex
+
+1.3.6.1.4.1.9.5.1.4.1.1.11
+
+=item 2 portModuleIndex
+
+1.3.6.1.4.1.9.5.1.4.1.1.1
+
+=item 3 moduleSerialNumber
+
+1.3.6.1.4.1.9.5.1.3.1.1.3
+
+Note: moduleSerialNumberString (1.3.6.1.4.1.9.5.1.3.1.1.26) may be an alternate.
+
+=back
+
+=item Brocade
+
+=over 7
+
+=item 1 snSwPortIfIndex
+
+1.3.6.1.4.1.1991.1.1.3.3.1.1.38
+
+=item 2 snSwPortDescr
+
+1.3.6.1.4.1.1991.1.1.3.3.1.1.39
+
+Note: Unit/Module/Interface (U/M/I) is assumed to map Unit to module IID.
+
+=item 3 snChasUnitSerNum
+
+1.3.6.1.4.1.1991.1.1.1.4.1.1.2
+
+=back
+
+=back
+
+=back
+
+=back
+
+=head2 6 Probe Level 1
+
+Probe Level 1 is specified using -p1 and updates Probe1Cache.
+
+During Probe Level 1, only the discovery stage is executed.
+It caches discovered nodes (default: F</var/cache/netsync/dns.txt>).
+This cache is created in RFC1035-complaint format.
+It may be passed as [nodes] in subsequent runs to skip inactive nodes.
+
+ $ netsync -Dm "sw[^.]+|hub[0-9]+" -p1
+ > configuring (using /etc/netsync/netsync.ini)...
+ > discovering (using DBMS)...  780 nodes (50 inactive), 800 devices
+ $ netsync /var/cache/netsync/dns.txt
+ > configuring (using /etc/netsync/netsync.ini)...
+ > discovering (using /var/cache/netsync/dns.txt)...  780 nodes, 800 devices
+ > identifying (using DBMS)...  670 recognized (4 conflicts)
+
+=head2 7 Identification
+
+Once netsync has a view of the network's hardware,
+it requires a database to find information specific to each interface.
+
+Note: Since netsync treats the database as read-only,
+      the table and fields must already be present in the database.
+
+The database may be provided one of two ways:
+
+=over 3
+
+=item DBMS
+
+This must be preconfigured in the configuration file and on the DBMS.
+
+=item Database (-d)
+
+An RFC4180-compliant database file may be specified using -d.
+
+=back
+
+=head3 About RFC4180
+
+RFC4180 specifies a simple format (CSV) for database files.
+This format is widely supported making it useful for importing and exporting.
+Thus, for compatibility, this application is RFC4180-compliant.
+
+ DeviceField,InterfaceField,InfoField
+ A1B2C3D4E5F6,ethernet1/1/1,PoE Enabled
+ A1B2C3D4E5F6,ethernet1/2/1,Uplink
+ ...
+
+=head2 8 Synchronization and Conflicts
+
+netsync identifies the network interface referenced in each database entry.
+A valid entry must not have missing DeviceField or InterfaceField information.
+Valid rows are synchronized with the network.
+Invalid rows are skipped.
+Any entry that netsync synchronizes is logged in DeviceLog.
+Entries with unidentified (not found) devices are skipped.
+Entries are then checked for conflicts.
+
+Unless Quiet mode is enabled, netsync will ask about resolving conflicts.
+Answering no is the same as running in Quiet mode.
+Both cause conflicts to be resolved automatically.
+
+
+There are 3 types of conflicts.
+
+=head3 Unidentified Interfaces
+
+This occurs when an InterfaceField value can't be found on an identified device.
+If the interface-specific information isn't empty,
+the row is dumped (default: F</var/cache/netsync/unidentified.csv>).
+
+=head3 Duplicate Entries
+
+This occurs when more than 1 entry for an interface exists in the database.
+During automatic resolution, the last entry seen is kept,
+otherwise netsync will ask which entry to keep.
+
+=head3 Unrecognized Devices & Interfaces
+
+This occurs when hardware is found on the network but not in the database.
+If conflicts aren't being automatically resolved and probing (-p) is used,
+you will be asked to initialize unrecognized hardware.
+If the unrecognized hardware is not manually initialized,
+it will be logged in UnrecognizedLog.
+
+=head2 9 Probe Level 2
+
+Probe level 2 is specified using -p2 and updates Probe1Cache and Probe2Cache.
+
+During Probe Level 2, only the discovery and identification stages are executed.
+It caches identified nodes (default: F</var/cache/netsync/db.csv>).
+This cache is created in RFC4180-complaint format.
+It may be passed as [nodes] in subsequent runs to skip synchronization.
+
+ $ netsync -Dm "sw[^.]+|hub[0-9]+" -a  -p2
+ > configuring (using /etc/netsync/netsync.ini)...
+ > discovering (using DNS)...  780 nodes (50 inactive), 800 devices
+ > identifying (using DBMS)...  670 recognized (4 conflicts)
+ > Do you want to resolve conflicts now? [y/n] n
+ $ netsync -d /var/cache/netsync/db.csv /var/cache/netsync/dns.txt
+ > configuring (using /etc/netsync/netsync.ini)...
+ > discovering (using /var/cache/netsync/dns.txt)...  780 nodes, 800 devices
+ > identifying (using /var/cache/netsync/db.csv)...  800 recognized
+
+Note: All unrecognized hardware will be present in Probe2Cache;
+      however, no unidentified entries will.
+      Instead, unidentified entries are stored in UnidentifiedCache.
+      This is so the output of Probe Level 2 can serve as a network snapshot.
+
+=head2 10 Updating
+
+All modifications made to any device are logged in UpdateLog.
+
+If probing is not used,
+netsync attempts to actualize its internally synchronized network using SNMP.
+It pushes gathered interface-specific information to the devices on the network.
+This information is stored in the device at the specified SyncOID,
+and is overwritten anytime netsync updates it.
+
+ $ netsync -Dau
+
+=head1 EXAMPLES
+
+ $ netsync -Dm "sw[^.]+|hub[0-9]+" -au
+ > configuring (using /etc/netsync/netsync.ini)...
+ > discovering (using DNS)...  780 nodes (50 inactive), 800 devices (10 stacks)
+ > identifying (using DBMS)...  670 recognized (4 conflicts)
+ > updating... #XXX : update this
+
+Z<>
+
+ $ dig axfr domain.tld | egrep ^(sw[^.]+|hub[0-9]+) | netsync -a
+ > configuring (using /etc/netsync/netsync.ini)...
+ > discovering (using STDIN)...  780 nodes (50 inactive), 800 devices
+ > identifying (using DBMS)...  670 recognized (4 conflicts)
+
+Z<>
+
+ $ netsync -Dm "sw[^.]+|hub[0-9]+" -p1
+ > configuring (using /etc/netsync/netsync.ini)...
+ > discovering (using DBMS)...  780 nodes (50 inactive), 800 devices
+ $ netsync /var/cache/netsync/dns.txt
+ > configuring (using /etc/netsync/netsync.ini)...
+ > discovering (using /var/cache/netsync/dns.txt)...  780 nodes, 800 devices
+ > identifying (using DBMS)...  670 recognized (4 conflicts)
+
+Z<>
+
+ $ netsync -Dm "sw[^.]+|hub[0-9]+" -a -p2
+ > configuring (using /etc/netsync/netsync.ini)...
+ > discovering (using DNS)...  780 nodes (50 inactive), 800 devices
+ > identifying (using DBMS)...  670 recognized (4 conflicts)
+ $ netsync -d /var/cache/netsync/db.csv /var/cache/netsync/dns.txt
+ > configuring (using /etc/netsync/netsync.ini)...
+ > discovering (using /var/cache/netsync/dns.txt)...  780 nodes, 800 devices
+ > identifying (using /var/cache/netsync/db.csv)...  800 recognized
+
+=head1 AUTHOR
+
+David Tucker
+
+=head1 LICENSE
+
+This file is part of netsync. netsync is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. netsync is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details. You should have received a copy of the GNU General Public License along with netsync. If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
