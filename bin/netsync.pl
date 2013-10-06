@@ -66,16 +66,16 @@ sub HELP_MESSAGE {
     say '  -V          Version. Print build information.';
     say '  -v          Verbose. Print everything.';
     say '  -q          Quiet. Print nothing.';
-    say '  -c .ini     Config. Specify a configuration file to use.';
+    say '  -c .ini     Config. Specify a configuration file.';
     say '  -p #        Probe. There are 2 Probe levels:';
     say '                1: Probe the network for active nodes.';
     say '                2: Probe the database for those nodes.';
     say "  -D          DNS. Use your network's domain name system to retrieve a list of nodes.";
     say '  -m pattern  Match. Only discover nodes with hostnames matching the given pattern.';
-    say '  -d .csv     Database. Specify an RFC4180-compliant database file to use.';
+    say '  -d .csv     Database. Specify an RFC4180-compliant database file.';
     say '  -a          Automatch. Enable interface auto-matching.';
     say '  -u          Update. Send interface-specific information to network nodes.';
-    say '  [nodes]     Nodes. Nodes. Specify an RFC1035-compliant list of network nodes to use.';
+    say '  [nodes]     Nodes. Nodes. Specify an RFC1035-compliant list of network nodes.';
 }
 
 

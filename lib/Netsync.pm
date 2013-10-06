@@ -120,6 +120,24 @@ the width of fields specifying node and device counts
 
 default: 4
 
+Example
+
+=over 6
+
+=item NodeOrder = 3 (nodes < 1000), 500 nodes
+
+ > discovering (using DNS)... 500 nodes (50 inactive), 600 devices (50 stacks)
+
+=item NodeOrder = 9 (nodes < 1000000000), 500 nodes
+
+ > discovering (using DNS)...       500 nodes (50 inactive), 600 devices (50 stacks)
+
+=item NodeOrder = 1 (nodes < 10), 20 nodes !
+
+ > discovering (using DNS)... 111111111120 nodes (2 inactive), 24 devices (2 stacks)
+
+=back
+
 =item Quiet
 
 Print nothing.
