@@ -1,33 +1,24 @@
-#!/usr/bin/perl
-
-package Configurator::SNMP;
-
-use autodie;
-use strict;
-
-use feature 'say';
-
-use File::Basename;
-use Scalar::Util 'blessed';
-use SNMP;
-use SNMP::Info;
-
+package Netsync::SNMP;
 
 =head1 NAME
 
-Configurator::SNMP - methods for handling SNMP communications
+Netsync::SNMP - SNMP framework
+
+=head1 DESCRIPTION
+
+This package contains functions for handling SNMP communications.
 
 =head1 SYNOPSIS
 
- use Configurator::SNMP;
+ use Netsync::SNMP;
  
- Configurator::SNMP::configure({
-     'SecName'   => 'your username',
+ Netsync::SNMP::configure({
+     'SecName'   => 'your username here',
      'SecLevel'  => 'AuthPriv',
      'AuthProto' => 'SHA',
-     'AuthPass'  => 'your password',
+     'AuthPass'  => 'your password here',
      'PrivProto' => 'AES',
-     'PrivPass'  => 'your private key',
+     'PrivPass'  => 'your key here',
  },[
      'IF-MIB','ENTITY-MIB',  # standard
      'CISCO-STACK-MIB',      # Cisco
@@ -36,26 +27,40 @@ Configurator::SNMP - methods for handling SNMP communications
  ]);
  
  my $ip      = '93.184.216.119';
- my $session = Configurator::SNMP::Session $ip;
+ my $session = Netsync::SNMP::Session $ip;
  
- my $info1   = Configurator::SNMP::Info $ip;
- my $info2   = Configurator::SNMP::Info $session;
+ my $info1   = Netsync::SNMP::Info $ip;
+ my $info2   = Netsync::SNMP::Info $session;
  
- my ($ifNames,$ifIIDs) = get1 ([
+ my ($ifNames,$ifIIDs) = Netsync::SNMP::get1 ([
      ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],
      ['.1.3.6.1.2.1.2.2.1.2'    => 'ifDescr'],
  ],$session);
  
- set ('ifAlias',$_,'Vote for Pedro',$session) foreach @$ifIIDs;
+ Netsync::SNMP::set ('ifAlias',$_,'Vote for Pedro',$session) foreach @$ifIIDs;
 
 =cut
 
 
-our $VERSION = '1.0.0-alpha';
+use 5.006;
+use strict;
+use warnings FATAL => 'all';
+use autodie; #XXX Is autodie adequate?
+
+use File::Basename;
+use Scalar::Util 'blessed';
+use SNMP;
+use SNMP::Info;
+
+our ($SCRIPT,$VERSION);
 our %config;
-{
-    $config{'MIBdir'}          = '/usr/lib/'.(fileparse ($0,"\.[^.]*")).'/mib';
-    
+
+BEGIN {
+    ($SCRIPT)  = fileparse ($0,"\.[^.]*");
+    ($VERSION) = (1.00);
+}
+
+INIT {
     $config{'AuthPass'}        = undef;
     $config{'AuthProto'}       = 'MD5';
     $config{'Community'}       = 'public';
@@ -72,62 +77,43 @@ our %config;
     $config{'SecName'}         = 'initial';
     $config{'Timeout'}         = 1000000;
     $config{'Version'}         = 3;
-}
-
-
-INIT {
+    
+    $config{'MIBdir'}          = '/usr/share/'.$SCRIPT.'/mib';
     SNMP::addMibDirs($config{'MIBdir'});
 }
 
-
-=head1 DESCRIPTION
-
-This package is an SNMP framework.
 
 =head1 METHODS
 
 =head2 configure (\%environment,\@MIBs)
 
-=head3 Arguments
+B<Arguments>
 
-=head4 environment
+=over 3
+
+=item environment
 
 key-value pairs of environment configurations
 
-Available Environment Settings
+B<Available Environment Settings>
 
-=over 5
+=over 4
 
 =item MIBdir
 
 the location of necessary MIBs
 
-default: F</usr/lib/E<lt>script nameE<gt>/mib>
+default: F</usr/share/E<lt>script nameE<gt>/mib>
 
 =back
 
-Note: See the documentation for SNMP and SNMP::Info on CPAN for more information.
-      Most constructor options are supported.
+See SNMP::Session documentation for more acceptable settings.
 
-=head4 MIBs
+=item MIBs
 
 a list of MIBs to load
 
-=head3 Example
-
- Configurator::SNMP::configure({
-     'SecName'   => 'your username',
-     'SecLevel'  => 'AuthPriv',
-     'AuthProto' => 'SHA',
-     'AuthPass'  => 'your password',
-     'PrivProto' => 'AES',
-     'PrivPass'  => 'your private key',
- },[
-     'IF-MIB','ENTITY-MIB',  # standard
-     'CISCO-STACK-MIB',      # Cisco
-     'FOUNDRY-SN-AGENT-MIB', # Brocade
-     'SEMI-MIB',             # HP
- ]);
+=back
 
 =cut
 
@@ -146,12 +132,12 @@ sub configure {
     }
     SNMP::initMib();
     
-    $config{'ContextEngineId'} //= $config{'SecEngineId'}; #/#XXX
+    $config{'ContextEngineId'} //= $config{'SecEngineId'};
     unless (($config{'Version'} < 3) or
             ($config{'SecLevel'} eq 'noAuthNoPriv') or
             ($config{'SecLevel'} eq 'authNoPriv' and defined $config{'AuthPass'}) or
             (defined $config{'AuthPass'} and defined $config{'PrivPass'})) {
-        warn 'SNMPv3 configuration is inadequate. See SecLevel, AuthPass, or PrivPass.';
+        warn 'SNMPv3 configuration is inadequate.';
         $success = 0;
     }
     return $success;
@@ -164,16 +150,15 @@ returns an SNMP::Session object.
 
 Note: configure needs to be run first!
 
-=head3 Arguments
+B<Arguments>
 
-=head4 ip
+=over 3
+
+=item ip
 
 an IP address to connect to
 
-=head3 Example
-
- my $ip      = '93.184.216.119';
- my $session = Configurator::SNMP::Session $ip;
+=back
 
 =cut
 
@@ -209,27 +194,23 @@ returns an SNMP::Info object
 
 Note: configure needs to be run first!
 
-=head3 Arguments
+B<Arguments>
 
-=head4 ip
+=over 3
+
+=item ip
 
 an IP address to connect to OR an SNMP::Session
 
-=head3 Example
-
- my $ip      = '93.184.216.119';
- my $info1   = Configurator::SNMP::Info $ip;
- 
- my $session = Configurator::SNMP::Session $ip;
- my $info2   = Configurator::SNMP::Info $session;
+=back
 
 Note: The following snippets are equivalent:
 
-=over 4
+=over 3
 
-=item C<Info $ip;>
+=item C<Netsync::SNMP::Info $ip;>
 
-=item C<Info Session $ip;>
+=item C<Netsync::SNMP::Info Netsync::SNMP::Session $ip;>
 
 =back
 
@@ -253,24 +234,19 @@ sub Info {
 
 attempt to retrieve an OID from a provided list, stopping on success
 
-=head3 Arguments
+B<Arguments>
 
-=head4 OIDs
+=over 3
 
-a list of OIDs to try and retreive
+=item OIDs
 
-=head4 ip
+a prioritized list of OIDs to try and retreive
+
+=item ip
 
 an IP address to connect to or an SNMP::Session
 
-=head3 Example
-
- my ($ifNames,$ifIIDs) = get1 ([
-     ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],
-     ['.1.3.6.1.2.1.2.2.1.2'    => 'ifDescr'],
- ],'93.184.216.119');
-
-Note: If ifName is unavailable, ifDescr will be tried.
+=back
 
 =cut
 
@@ -307,29 +283,27 @@ sub get1 {
 
 attempt to set a new value on a device using SNMP
 
-=head3 Arguments
+B<Arguments>
 
-=head4 OID
+=over 3
+
+=item OID
 
 the OID to write the value argument to
 
-=head4 IID
+=item IID
 
 the IID to write the value argument to
 
-=head4 value
+=item value
 
 the value to write to OID.IID
 
-=head4 ip
+=item ip
 
 an IP address to connect to OR an SNMP::Session
 
-=head3 Example
-
- my ($ifIIDs) = get1 ([['.1.3.6.1.2.1.2.2.1.1' => 'ifIndex']],'93.184.216.119');
- 
- set ('ifAlias',$_,'Vote for Pedro','93.184.216.119') foreach @$ifIIDs;
+=back
 
 =cut
 
@@ -353,18 +327,53 @@ sub set {
 
 =head1 AUTHOR
 
-David Tucker
+David Tucker, C<< <dmtucker at ucsc.edu> >>
+
+=head1 BUGS
+
+Please report any bugs or feature requests to C<bug-netsync at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Netsync>.  I will be notified, and then you'll
+automatically be notified of progress on your bug as I make changes.
+
+=head1 SUPPORT
+
+You can find documentation for this module with the perldoc command.
+
+ perldoc Netsync
+
+You can also look for information at:
+
+=over 4
+
+=item * RT: CPAN's request tracker (report bugs here)
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Netsync>
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/Netsync>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/Netsync>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/Netsync/>
+
+=back
 
 =head1 LICENSE
 
-This file is part of netsync.
-netsync is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-netsync is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-See the GNU General Public License for more details.
-You should have received a copy of the GNU General Public License along with netsync.
-If not, see L<http://www.gnu.org/licenses/>.
+Copyright 2013 David Tucker.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See L<http://dev.perl.org/licenses/> for more information.
 
 =cut
 
 
-1
+1;

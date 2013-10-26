@@ -1,98 +1,145 @@
-#!/usr/bin/perl
-
 package Netsync;
-
-use autodie;
-use strict;
-
-use feature 'say';
-use feature 'switch';
-
-use DBI;
-use File::Basename;
-use Net::DNS;
-use POSIX;
-use Regexp::Common;
-use Text::CSV;
-
-use Configurator::SNMP;
-use FileManager;
-use Netsync::Networker;
-use Netsync::UI;
-
 
 =head1 NAME
 
-Netsync - network/database utility
-
-=head1 SYNOPSIS
-
-C<use Netsync;>
-
-=cut
-
-
-our $VERSION = '1.0.0-alpha';
-our %config;
-{
-    my $SCRIPT = fileparse ($0,"\.[^.]*");
-    
-    $config{'Indent'}            = 4;
-    $config{'Quiet'}             = 0;
-    $config{'Verbose'}           = 0;
-    
-    $config{'DeviceField'}       = undef;
-    $config{'InfoFields'}        = undef;
-    $config{'InterfaceField'}    = undef;
-    
-    $config{'DeviceOrder'}         = 4;
-    $config{'AlertLog'}          = '/var/log/'.$SCRIPT.'/'.$SCRIPT.'.log';
-    $config{'DeviceLog'}         = '/var/log/'.$SCRIPT.'/devices.log';
-    $config{'NodeLog'}           = '/var/log/'.$SCRIPT.'/nodes.log';
-    $config{'UnidentifiedCache'} = '/var/cache/'.$SCRIPT.'/unidentified.csv';
-    $config{'UnrecognizedLog'}   = '/var/log/'.$SCRIPT.'/unrecognized.log';
-    $config{'UpdateLog'}         = '/var/log/'.$SCRIPT.'/updates.log';
-    $config{'SyncOID'}           = 'ifAlias';
-    
-    $config{'SNMP'} = undef;
-    $config{'DNS'}  = undef;
-    $config{'DB'}   = undef;
-}
-
+Netsync - network/database synchronization library
 
 =head1 DESCRIPTION
 
 This package can discover a network and synchronize it with a database.
 
+=head1 SYNOPSIS
+
+ use Netsync;
+ 
+ Netsync::configure({
+     'Table'          => 'assets',
+     'DeviceField'    => 'SERIAL_NUMBER',
+     'InterfaceField' => 'PORT',
+     'InfoFields'     => ['BLDG','ROOM','JACK'],
+ },{
+     'domain'         => 'example.com',
+ },{
+     'Version'        => 2,
+     'Community'      => 'example',
+ },{
+     'DBMS'           => 'pg',
+     'Server'         => 'pg.example.com',
+     'Port'           => 5432,
+     'Database'       => 'example_db',
+     'Username'       => 'user',
+     'Password'       => 'pass',
+ });
+ 
+ my $nodes = Netsync::discover ('DNS','host[0-9]+');
+ Netsync::identify ($nodes,'DB',1);
+ Netsync::update ($nodes);
+
+=cut
+
+
+use 5.006;
+use strict;
+use warnings FATAL => 'all';
+
+use autodie; #XXX Is autodie adequate?
+use feature 'say';
+
+use DBI;
+use File::Basename;
+use Net::DNS;
+use Text::CSV;
+
+use Helpers::Scribe 'note';
+use Netsync::Network;
+use Netsync::SNMP;
+
+our ($SCRIPT,$VERSION);
+our %config;
+
+BEGIN {
+    ($SCRIPT)  = fileparse ($0,"\.[^.]*");
+    ($VERSION) = (1.00);
+    
+    require Exporter;
+    our @ISA = ('Exporter');
+    our@EXPORT_OK = ('device_interfaces');
+}
+
+INIT {
+    $config{'Indent'}  = 4;
+    $config{'Quiet'}   = 0;
+    $config{'Verbose'} = 0;
+    
+    $config{'Table'}          = undef;
+    $config{'DeviceField'}    = undef;
+    $config{'InterfaceField'} = undef;
+    $config{'InfoFields'}     = undef;
+    $config{'SyncOID'}        = 'ifAlias';
+    
+    $config{'DeviceOrder'} = 4;
+    
+    $config{'NodeLog'}     = '/var/log/'.$SCRIPT.'/nodes.log';
+    $config{'ConflictLog'} = '/var/log/'.$SCRIPT.'/conflicts.log';
+    $config{'UpdateLog'}   = '/var/log/'.$SCRIPT.'/updates.log';
+    
+    $config{'DNS'}  = undef;
+    $config{'SNMP'} = undef;
+    $config{'DB'}   = undef;
+}
+
+
 =head1 METHODS
 
-=head2 configure \%environment
+=head2 configure (\%Netsync[,\%DNS[,\%SNMP[,\%DB]]])
 
-=head3 Arguments
+configure Netsync operating environment
 
-=head4 environment
+B<Arguments>
 
-key-value pairs of environment configurations
+=over 3
 
-Available Environment Settings
+=item Netsync
 
-=over 5
+key-value pairs of Netsync environment settings
 
-=item AlertLog
+B<Available Environment Settings>
 
-where to log errors and alerts
+=over 4
 
-default: F</var/log/E<lt>script nameE<gt>/E<lt>script nameE<gt>.log>
+=item ConflictLog
+
+where to log conflicts
+
+default: F</var/log/E<lt>script nameE<gt>/conflicts.log>
 
 =item DeviceField
 
 the table field to use as a unique ID for devices
 
-=item DeviceLog
+=item DeviceOrder
 
-where to log the location of all devices found in the database
+the width of fields specifying node and device counts
 
-default: F</var/log/E<lt>script nameE<gt>/devices.log>
+default: 4
+
+Example
+
+=over 5
+
+=item DeviceOrder = 3 (nodes < 1000), 500 nodes
+
+ > discovering (using DNS)... 500 nodes (50 inactive), 600 devices (50 stacks)
+
+=item DeviceOrder = 9 (nodes < 1000000000), 500 nodes
+
+ > discovering (using DNS)...       500 nodes (50 inactive), 600 devices (50 stacks)
+
+=item DeviceOrder = 1 (nodes < 10), 20 nodes !
+
+ > discovering (using DNS)... 111111111120 nodes (2 inactive), 24 devices (2 stacks)
+
+=back
 
 =item Indent
 
@@ -114,53 +161,21 @@ where to log all probed nodes
 
 default: F</var/log/E<lt>script nameE<gt>/nodes.log>
 
-=item DeviceOrder
-
-the width of fields specifying node and device counts
-
-default: 4
-
-Example
-
-=over 6
-
-=item NodeOrder = 3 (nodes < 1000), 500 nodes
-
- > discovering (using DNS)... 500 nodes (50 inactive), 600 devices (50 stacks)
-
-=item NodeOrder = 9 (nodes < 1000000000), 500 nodes
-
- > discovering (using DNS)...       500 nodes (50 inactive), 600 devices (50 stacks)
-
-=item NodeOrder = 1 (nodes < 10), 20 nodes !
-
- > discovering (using DNS)... 111111111120 nodes (2 inactive), 24 devices (2 stacks)
-
-=back
-
 =item Quiet
 
 Print nothing.
 
-Note: If both Quiet and Verbose mode are used simultaneously, they cancel each other out.
-
 default: 0
+
+=item SyncOID
+
+which OID to send synchronized information to when updating
+
+default: ifAlias
 
 =item Table
 
 which database table to use
-
-=item UnidentifiedCache
-
-where to dump interfaces found while probing in the database that do not correspond to an interface on the actual device
-
-default: F</var/cache/E<lt>script nameE<gt>/unidentified.csv>
-
-=item UnrecognizedLog
-
-where to log devices found on the network, but not in the database
-
-default: F</var/log/E<lt>script nameE<gt>/unrecognized.log>
 
 =item UpdateLog
 
@@ -172,96 +187,121 @@ default: F</var/log/E<lt>script nameE<gt>/updates.log>
 
 Print everything.
 
-Note: If both Quiet and Verbose mode are used simultaneously, they cancel each other out.
+Note: Quiet mode overrides Verbose mode.
 
 default: 0
 
 =back
 
-Note: The variables missing defaults above are required for Netsync to operate.
+Note: The settings missing defaults above are required for Netsync to operate.
 
-=head3 Example
+Netsync requires the following settings to use a DBMS:
 
 =over 4
 
- Netsync::configure(
-     'Table'          => 'assets',
-     'DeviceField'    => 'SERIAL_NUMBER',
-     'InterfaceField' => 'PORT',
-     'InfoFields'     => ['BLDG','ROOM','JACK'],
- );
+=item DBMS
+
+the database platform to use
+
+=item Server
+
+the server containing the database to use
+
+=item Port
+
+the port to contact the database server on
+
+=item Database
+
+the database to connect to
+
+=item Username
+
+the user to connect to the database as
+
+=item Password
+
+the authentication key to use to connect to the database
+
+=back
+
+Netsync requires the following settings to use SNMP:
+
+=over 4
+
+=item MIBdir
+
+the location of MIBs required by Netsync
+
+default: F</usr/share/E<lt>script nameE<gt>/mib>
+
+=back
+
+=item DNS
+
+See Net::DNS documentation for more acceptable settings.
+
+=item SNMP
+
+See SNMP::Session documentation for more acceptable settings.
+
+=item DB
+
+See DBI documentation for more acceptable settings.
 
 =back
 
 =cut
 
 sub configure {
-    warn 'too few arguments'  if @_ < 2;
+    warn 'too few arguments'  if @_ < 1;
     warn 'too many arguments' if @_ > 4;
-    my ($Netsync,$SNMP,$DB,$DNS) = @_;
+    my ($Netsync,$DNS,$SNMP,$DB) = @_;
     
     $config{$_} = $Netsync->{$_} foreach keys %$Netsync;
     
     my $success = 1;
-    unless (Configurator::SNMP::configure($SNMP,[
+    if ((defined $DB->{'Server'}   or  defined $DB->{'Port'}      or
+         defined $DB->{'DBMS'}     or  defined $DB->{'Database'}  or
+         defined $DB->{'Username'} or  defined $DB->{'Password'}) and not
+        (defined $DB->{'Server'}   and defined $DB->{'Port'}      and
+         defined $DB->{'DBMS'}     and defined $DB->{'Database'}  and
+         defined $DB->{'Username'} and defined $DB->{'Password'})) {
+        warn 'DBMS configuration is inadequate.';
+        $success = 0;
+    }
+    unless (Netsync::SNMP::configure($SNMP,[
         'IF-MIB','ENTITY-MIB',                                # standard
         'CISCO-STACK-MIB',                                    # Cisco
         'FOUNDRY-SN-AGENT-MIB','FOUNDRY-SN-SWITCH-GROUP-MIB', # Brocade
-        'SEMI-MIB', #XXX 'HP-SN-AGENT-MIB'                         # HP
+        'SEMI-MIB', # 'HP-SN-AGENT-MIB'                         # HP #XXX Is HP-SN-AGENT-MIB analgous to FOUNDRY-SN-AGENT-MIB?
     ])) {
-        warn 'Netsync::Configurator::SNMP misconfiguration';
+        warn 'Netsync::SNMP misconfiguration';
         $success = 0;
     }
-    if (defined $DB) {
-        $config{'DB'} = $DB;
-        unless (defined $DB->{'Server'}   and defined $DB->{'Port'}     and
-                defined $DB->{'DBMS'}     and defined $DB->{'Database'} and
-                defined $DB->{'Username'} and defined $DB->{'Password'}) {
-            warn 'Database configuration is inadequate. See Server, Port, DBMS, Database, Username, or Password.';
-            $success = 0;
-        }
-    }
-    if (defined $DNS) {
-        $config{'DNS'} = $DNS;
-        unless (defined $DNS->{'domain'}) {
-             warn 'DNS configuration is inadequate.';
-             $success = 0;
-         }
-    }
+    $config{'DB'}  = $DB  if defined $DB;
+    $config{'DNS'} = $DNS if defined $DNS;
     return $success;
 }
 
 
-=head2 discover [($node_source[,$host_pattern])]
-
-search the network for active nodes
-
-=head3 Arguments
-
-=head4 [node_source]
-
-=head4 [host_pattern]
-
-=head3 Example
-
-=cut
-
-
 =head2 device_interfaces ($vendor,$session)
 
-disocver all the devices and interfaces of a node
+discover all the devices and corresponding interfaces of a potentially stacked node
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<$vendor>
+=over 3
 
-a return value of SNMP::Info::vendor
+=item vendor
 
-Supported Vendors
+a value returned from SNMP::Info::vendor
 
-=over 5
+B<Supported Vendors>
 
-=item brocade
+=over 4
+
+=item brocade/foundry
 
 =item cisco
 
@@ -269,17 +309,17 @@ Supported Vendors
 
 =back
 
-=head4 C<$session>
+=item session
 
 an SNMP::Session object
 
-=head3 Example
+=back
+
+B<Example>
 
 =over 3
 
-=item C<my $serial2if2ifName = device_interfaces ($node-E<gt>{'info'}-E<gt>vendor,$node-E<gt>{'session'});>
-
-C<$serial2if2ifName>
+C<device_interfaces ($node-E<gt>{'info'}-E<gt>vendor,$node-E<gt>{'session'});>
 
  {
    '1A2B3C4D5E6F' => {
@@ -308,28 +348,28 @@ sub device_interfaces {
     {
         my %if2ifName;
         {
-            my ($types) = Configurator::SNMP::get1 ([['.1.3.6.1.2.1.2.2.1.3' => 'ifType']],$session); # IF-MIB
-            my ($ifNames,$ifs) = Configurator::SNMP::get1 ([
+            my ($types) = Netsync::SNMP::get1 ([['.1.3.6.1.2.1.2.2.1.3' => 'ifType']],$session); # IF-MIB
+            my ($ifNames,$ifs) = Netsync::SNMP::get1 ([
                 ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],  # IF-MIB
                 ['.1.3.6.1.2.1.2.2.1.2'    => 'ifDescr'], # IF-MIB
             ],$session); # IF-MIB
             foreach my $i (keys @$ifs) {
                 unless (defined $types->[$i] and defined $ifNames->[$i]) {
-                    note (get_config ('general.Log'),'Malformed IF-MIB results have been received.');
+                    warn 'malformed IF-MIB results';
                     next;
                 }
                 $if2ifName{$ifs->[$i]} = $ifNames->[$i] if $types->[$i] =~ /^(?!1|24|53)[0-9]+$/;
-                if ($types->[$i] =~ /^(?!1|6|24|53)[0-9]+$/) {
-                    note (get_config ('general.Log'),'A foreign ifType ('.$types->[$i].') has been encountered on interface '.$ifNames->[$i]);
+                if ($types->[$i] =~ /^(?!1|6|24|53)[0-9]+$/) { #XXX tmp
+                    warn 'A foreign ifType ('.$types->[$i].') has been encountered on interface '.$ifNames->[$i];
                 }
             }
         }
         
         my @serials;
-        {
-            my ($serials) = Configurator::SNMP::get1 ([['.1.3.6.1.2.1.47.1.1.1.1.11' => 'entPhysicalSerialNum']],$session); # ENTITY-MIB
+        { # ENTITY-MIB
+            my ($serials) = Netsync::SNMP::get1 ([['.1.3.6.1.2.1.47.1.1.1.1.11' => 'entPhysicalSerialNum']],$session);
             if (defined $serials) {
-                my ($classes) = Configurator::SNMP::get1 ([['.1.3.6.1.2.1.47.1.1.1.1.5' => 'entPhysicalClass']],$session);  # ENTITY-MIB
+                my ($classes) = Netsync::SNMP::get1 ([['.1.3.6.1.2.1.47.1.1.1.1.5' => 'entPhysicalClass']],$session);
                 foreach my $i (keys @$classes) {
                     push (@serials,$serials->[$i]) if $classes->[$i] =~ /3/ and $serials->[$i] !~ /[^[:ascii:]]/;
                 }
@@ -337,69 +377,74 @@ sub device_interfaces {
         }
         unless (@serials > 0) {
             my $serials;
-            given ($vendor) {
-                when ('cisco') {
-                    ($serials) = Configurator::SNMP::get1 ([
-                        ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # CISCO-STACK-MIB
-                        ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # CISCO-STACK-MIB
+            {
+                my $cisco = sub { # CISCO-STACK-MIB
+                    ($serials) = Netsync::SNMP::get1 ([
+                        ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],
+                        ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'],
                     ],$session);
-                }
-                when (['brocade','foundry']) {
-                    ($serials) = Configurator::SNMP::get1 ([
-                        ['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum'], # FOUNDRY-SN-AGENT-MIB?
-                        ['.1.3.6.1.4.1.1991.1.1.1.1.2'     => 'snChasSerNum'],     # FOUNDRY-SN-AGENT-MIB (stackless)
+                };
+                my $brocade = sub { # FOUNDRY-SN-AGENT-MIB?
+                    ($serials) = Netsync::SNMP::get1 ([
+                        ['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum'],
+                        ['.1.3.6.1.4.1.1991.1.1.1.1.2'     => 'snChasSerNum'], # stacks not supported
                     ],$session);
-                }
-                when ('hp') {
-                    ($serials) = Configurator::SNMP::get1 ([
-                        ['.1.3.6.1.4.1.11.2.36.1.1.2.9'        => 'hpHttpMgSerialNumber'],       # SEMI-MIB
-                        #['.1.3.6.1.4.1.11.2.36.1.1.5.1.1.10'   => 'hpHttpMgDeviceSerialNumber'], # SEMI-MIB
-                        #['.1.3.6.1.4.1.11.2.3.7.11.12.1.1.1.2' => 'snChasSerNum'],               # HP-SN-AGENT-MIB (stackless?)
+                };
+                my $hp = sub { # SEMI-MIB #XXX HP-SN-AGENT-MIB
+                    ($serials) = Netsync::SNMP::get1 ([
+                        ['.1.3.6.1.4.1.11.2.36.1.1.2.9'        => 'hpHttpMgSerialNumber'],
+                        #['.1.3.6.1.4.1.11.2.36.1.1.5.1.1.10'   => 'hpHttpMgDeviceSerialNumber'],
+                        #['.1.3.6.1.4.1.11.2.3.7.11.12.1.1.1.2' => 'snChasSerNum'], #XXX HP-SN-AGENT-MIB stacks not supported?
                     ],$session);
-                }
-                default {
-                    note (get_config ('general.Log'),'Serial retrieval attempted on an unsupported device vendor ('.$vendor.')');
-                }
+                };
+                my %vendors = (
+                    'cisco'   => $cisco,
+                    'brocade' => $brocade,
+                    'foundry' => $brocade,
+                    'hp'      => $hp,
+                    'unsupported' => sub {
+                        warn $vendor.' devices are not supported.';
+                    },
+                );
+                ($vendors{$vendor} || $vendors{'unsupported'})->();
             }
+            
             foreach my $serial (@$serials) {
                 push (@serials,$serial) if $serial !~ /[^[:ascii:]]/;
             }
         }
-        if (@serials == 0) {
-            note (get_config ('general.Log'),'No serials could be found for a '.$vendor.' device.');
-            return undef;
-        }
+        if (@serials == 0) { return undef; }
         if (@serials == 1) {
             $serial2if2ifName{$serials[0]} = \%if2ifName;
         }
         else {
             my %if2serial;
-            given ($vendor) {
-                when ('cisco') {
-                    my ($port2if) = Configurator::SNMP::get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.11' => 'portIfIndex']],$session); # CISCO-STACK-MIB
+            {
+                my $cisco = sub { # CISCO-STACK-MIB
+                    my ($port2if) = Netsync::SNMP::get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.11' => 'portIfIndex']],$session);
                     my @port2serial;
                     {
-                        my ($port2module) = Configurator::SNMP::get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.1'  => 'portModuleIndex']],$session); # CISCO-STACK-MIB
+                        my ($port2module) = Netsync::SNMP::get1 ([['.1.3.6.1.4.1.9.5.1.4.1.1.1' => 'portModuleIndex']],$session);
                         my %module2serial;
                         {
-                            my ($serials,$modules) = Configurator::SNMP::get1 ([
-                                ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],       # CISCO-STACK-MIB
-                                ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'], # CISCO-STACK-MIB
+                            my ($serials,$modules) = Netsync::SNMP::get1 ([
+                                ['.1.3.6.1.4.1.9.5.1.3.1.1.3'  => 'moduleSerialNumber'],
+                                ['.1.3.6.1.4.1.9.5.1.3.1.1.26' => 'moduleSerialNumberString'],
                             ],$session);
                             @module2serial{@$modules} = @$serials;
                         }
                         push (@port2serial,$module2serial{$_}) foreach @$port2module;
                     }
                     @if2serial{@$port2if} = @port2serial;
-                }
-                when (['brocade','foundry']) {
-                    my ($port2if) = Configurator::SNMP::get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.38' => 'snSwPortIfIndex']],$session); # FOUNDRY-SN-SWITCH-GROUP-MIB
+                };
+                my $brocade = sub { # FOUNDRY-SN-SWITCH-GROUP-MIB
+                    my ($port2if) = Netsync::SNMP::get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.38' => 'snSwPortIfIndex']],$session);
                     my @port2serial;
                     {
-                        my ($port2umi) = Configurator::SNMP::get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.39' => 'snSwPortDescr']],$session); # FOUNDRY-SN-SWITCH-GROUP-MIB
+                        my ($port2umi) = Netsync::SNMP::get1 ([['.1.3.6.1.4.1.1991.1.1.3.3.1.1.39' => 'snSwPortDescr']],$session);
                         my %module2serial;
                         {
-                            my ($serials,$modules) = Configurator::SNMP::get1 ([['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum']],$session); # FOUNDRY-SN-AGENT-MIB?
+                            my ($serials,$modules) = Netsync::SNMP::get1 ([['.1.3.6.1.4.1.1991.1.1.1.4.1.1.2' => 'snChasUnitSerNum']],$session); #XXX FOUNDRY-SN-AGENT-MIB?
                             @module2serial{@$modules} = @$serials;
                         }
                         foreach (@$port2umi) {
@@ -407,26 +452,41 @@ sub device_interfaces {
                         }
                     }
                     @if2serial{@$port2if} = @port2serial;
-                }
-                default {
-                    note (get_config ('general.Log'),'Interface mapping attempted on an unsupported device vendor ('.$vendor.')');
-                }
+                };
+                my %stack_vendors = (
+                    'cisco'   => $cisco,
+                    'brocade' => $brocade,
+                    'foundry' => $brocade,
+                    'unsupported' => sub {
+                        warn $vendor.' stacks are not supported.';
+                    },
+                );
+                ($stack_vendors{$vendor} || $stack_vendors{'unsupported'})->();
             }
+            
             foreach my $if (keys %if2serial) {
-                $serial2if2ifName{$if2serial{$if}}{$if} = $if2ifName{$if};
+                $serial2if2ifName{$if2serial{$if}}{$if} = $if2ifName{$if} if defined $if2serial{$if};
             }
         }
     }
     return \%serial2if2ifName;
 }
 
-sub probe {
+
+
+
+################################################################################
+
+
+
+
+sub recognize {
     my (@nodes) = @_;
     
     my $serial_count = 0;
     foreach my $node (@nodes) {
         
-        my ($session,$info) = Configurator::SNMP::Info $node->{'ip'};
+        my ($session,$info) = Netsync::SNMP::Info $node->{'ip'};
         if (defined $info) {
             $node->{'session'} = $session;
             $node->{'info'}    = $info;
@@ -437,18 +497,17 @@ sub probe {
             next;
         }
         
-        { # Process a newly discovered node.
-            my $serial2if2ifName = device_interfaces ($node->{'info'}->vendor,$node->{'session'});
-            if (defined $serial2if2ifName) {
-                my @serials = keys %$serial2if2ifName;
-                note ($config{'NodeLog'},node_string ($node).' '.join (' ',@serials));
-                node_initialize ($node,$serial2if2ifName);
-                $serial_count += @serials;
-            }
-            else {
-                note ($config{'NodeLog'},node_string ($node).' no devices detected');
-                next;
-            }
+        my $serial2if2ifName = device_interfaces ($node->{'info'}->vendor,$node->{'session'});
+        if (defined $serial2if2ifName) {
+            my @serials = keys %$serial2if2ifName;
+            note ($config{'NodeLog'},node_string ($node).' '.join (' ',@serials));
+            node_initialize ($node,$serial2if2ifName);
+            $serial_count += @serials;
+        }
+        else {
+            note ($config{'NodeLog'},node_string ($node).' unrecognized');
+            say node_string ($node).' unrecognized' if $config{'Verbose'};
+            next;
         }
         
         node_dump $node if $config{'Verbose'};
@@ -456,11 +515,36 @@ sub probe {
     return $serial_count;
 }
 
+
+=head2 discover [($node_source[,$host_pattern])]
+
+search the network for active nodes
+
+B<Arguments>
+
+=over 3
+
+=item [node_source]
+
+where to get nodes from (DNS, STDIN, or a filename)
+
+default: DNS
+
+=item [host_pattern]
+
+a regular expression to match hostnames from the list of retrieved nodes
+
+default: [^.]+
+
+=back
+
+=cut
+
 sub discover {
     warn 'too many arguments' if @_ > 2;
     my ($node_source,$host_pattern) = @_;
-    $node_source  //= 'DNS'; #/#XXX
-    $host_pattern //= '[^.]+'; #/#XXX
+    $node_source  //= 'DNS';
+    $host_pattern //= '[^.]+';
     
     my $nodes = {};
     
@@ -470,52 +554,51 @@ sub discover {
     }
     
     my @zone;
-    given ($node_source) {
-        when ('DNS') {
-            unless (defined $config{'DNS'}) {
-                warn 'DNS has not been configured.';
-                return undef;
-            }
-            if (defined $config{'DNS'}{'nameservers'}) {
-                $config{'DNS'}{'nameservers'} = (ref $config{'DNS'}{'nameservers'}) ?
-                                                     $config{'DNS'}{'nameservers'} :
-                                                    [$config{'DNS'}{'nameservers'}];
-            }
-            if (defined $config{'DNS'}{'searchlist'}) {
-                $config{'DNS'}{'searchlist'}  = (ref $config{'DNS'}{'searchlist'}) ?
-                                                     $config{'DNS'}{'searchlist'} :
-                                                    [$config{'DNS'}{'searchlist'}];
-            }
-            
-            my $resolver = Net::DNS::Resolver->new(%{$config{'DNS'}});
-            $resolver->print if $config{'Verbose'};
-            push (@zone,$_->string) foreach $resolver->axfr;
-        }
-        when ('STDIN') {
-            chomp (@zone = <>);
-        }
-        default {
-            open (my $node_file,'<',$node_source);
-            chomp (@zone = <$node_file>);
-            close $node_file;
-        }
+    { # Retrieve relevant nodes.
+        my %inputs = (
+            'DNS' => sub {
+                unless (defined $config{'DNS'}) {
+                    warn 'DNS has not been configured.';
+                    return undef;
+                }
+                if (defined $config{'DNS'}{'nameservers'}) {
+                    $config{'DNS'}{'nameservers'} = (ref $config{'DNS'}{'nameservers'}) ?
+                                                         $config{'DNS'}{'nameservers'} :
+                                                        [$config{'DNS'}{'nameservers'}];
+                }
+                if (defined $config{'DNS'}{'searchlist'}) {
+                    $config{'DNS'}{'searchlist'}  = (ref $config{'DNS'}{'searchlist'}) ?
+                                                         $config{'DNS'}{'searchlist'} :
+                                                        [$config{'DNS'}{'searchlist'}];
+                }
+                my $resolver = Net::DNS::Resolver->new(%{$config{'DNS'}});
+                $resolver->print if $config{'Verbose'};
+                push (@zone,$_->string) foreach $resolver->axfr;
+            },
+            'default' => sub {
+                open (my $node_file,'<',$node_source);
+                chomp (@zone = <$node_file>);
+                close $node_file;
+            },
+        );
+        ($inputs{$node_source} || $inputs{'default'})->();
     }
     
-    my ($inactive_node_count,$deployed_device_count,$stack_count) = (0,0,0);
+    my ($skip_count,$device_count,$stack_count) = (0,0,0);
     foreach (@zone) {
-        if (/^(?<host>$host_pattern)\.(\S+\.)+\s+(\d+)\s+(\S+)\s+(?:A|AAAA)\s+(?<ip>$RE{'net'}{'IPv4'}|$RE{'net'}{'IPv6'})/) {
+        if (/^(?<host>$host_pattern)(\.(?:\S+\.)+\s+(?:\d+)\s+(?:\S+)\s+(?:A|AAAA))?\s+(?<ip>.+)$/) { # upgrade this to support a list of IP addresses
             $nodes->{$+{'ip'}}{'ip'} = $+{'ip'};
             my $node = $nodes->{$+{'ip'}};
             $node->{'hostname'} = $+{'host'};
             $node->{'RFC1035'}  = $_;
             
-            my $serial_count = probe $node;
+            my $serial_count = recognize $node;
             if ($serial_count < 1) {
-                ++$inactive_node_count;
+                ++$skip_count;
                 delete $nodes->{$+{'ip'}};
             }
             else {
-                $deployed_device_count += $serial_count;
+                $device_count += $serial_count;
                 ++$stack_count if $serial_count > 1;
                 
                 unless ($config{'Quiet'} or $config{'Verbose'}) {
@@ -531,9 +614,9 @@ sub discover {
         print $node_count if $config{'Verbose'};
         print ' node';
         print 's' if $node_count != 1;
-        print ' ('.$inactive_node_count.' inactive)' if $inactive_node_count > 0;
-        print ', '.$deployed_device_count.' device';
-        print 's' if $deployed_device_count != 1;
+        print ' ('.$skip_count.' skipped)' if $skip_count > 0;
+        print ', '.$device_count.' device';
+        print 's' if $device_count != 1;
         if ($stack_count > 0) {
             print ' ('.$stack_count.' stack';
             print 's' if $stack_count != 1;
@@ -553,39 +636,25 @@ sub discover {
 
 
 
-=head2 identify ($nodes[,$data_source[,$auto_match]])
-
-=head3 Arguments
-
-=head4 nodes
-
-=head3 Example
-
-=cut
-
 sub synchronize {
-    warn 'too few arguments' if @_ < 3;
-    my ($nodes,$recognized,@rows) = @_;
+    warn 'too few arguments'  if @_ < 4;
+    warn 'too many arguments' if @_ > 4;
+    my ($nodes,$identified,$auto_match,$rows) = @_;
     
     my $conflict_count = 0;
-    foreach my $row (@rows) {
+    foreach my $row (@$rows) {
         my $serial = uc $row->{$config{'DeviceField'}};
         my $ifName = $row->{$config{'InterfaceField'}};
         
-        my $node = $recognized->{$serial};
+        my $node = $identified->{$serial};
         unless (defined $node) {
-            my $device = device_recognize ($nodes,$serial);
-            unless (defined $device) {
-                note ($config{'DeviceLog'},$serial.' unidentified');
-                say $serial.' unidentified' if $config{'Verbose'};
-                next;
-            }
-            $recognized->{$serial} = $node = $device->{'node'};
-            note ($config{'DeviceLog'},$serial.' @ '.$node->{'ip'}.' ('.$node->{'hostname'}.')');
+            my $device = device_find ($nodes,$serial);
+            next unless defined $device;
+            $identified->{$serial} = $node = $device->{'node'};
         }
         
         my $device = $node->{'devices'}{$serial};
-        if ($config{'AutoMatch'} and not defined $device->{'interfaces'}{$ifName}) {
+        if ($auto_match and not defined $device->{'interfaces'}{$ifName}) {
             foreach (sort keys %{$device->{'interfaces'}}) {
                 if (/[^0-9]$ifName$/) {
                     $ifName = $row->{$config{'InterfaceField'}} = $_;
@@ -598,12 +667,12 @@ sub synchronize {
             my $new_conflict_count = 0;
             if (defined $device->{'interfaces'}{$ifName}) {
                 my $interface = $device->{'interfaces'}{$ifName};
-                if ($interface->{'recognized'}) {
+                if ($interface->{'identified'}) {
                     ++$new_conflict_count;
-                    push (@{$interface->{'conflicts'}{'duplicate'}},$row);
+                    note ($config{'ConflictLog'},interface_string ($interface).' duplicate');
                 }
                 else {
-                    $interface->{'recognized'} = 1;
+                    $interface->{'identified'} = 1;
                     foreach my $field (@{$config{'InfoFields'}}) {
                         $interface->{'info'}{$field} = $row->{$field};
                     }
@@ -612,26 +681,8 @@ sub synchronize {
                 }
             }
             else {
-                my $empty_field_count = 0;
-                foreach my $field (@{$config{'InfoFields'}}) {
-                    ++$empty_field_count unless $row->{$field} =~ /\S+/;
-                }
-                if ($empty_field_count < @{$config{'InfoFields'}}) {
-                    my $note = $serial.','.$ifName;
-                    foreach my $field (sort @{$config{'InfoFields'}}) {
-                        $note .= ','.($row->{$field} // ''); #/#XXX
-                    }
-                    note ($config{'UnidentifiedCache'},$note,0);
-                }
-                else {
-                    if ($config{'Verbose'}) {
-                        print 'An unidentified interface ('.$ifName.')';
-                        print ' for '.$device->{'serial'};
-                        print ' at '.$device->{'node'}{'ip'};
-                        print ' ('.$device->{'node'}{'hostname'}.')';
-                        say ' contains no information to synchronize and will be ignored.';
-                    }
-                }
+                ++$new_conflict_count;
+                note ($config{'ConflictLog'},device_string ($device).' '.$ifName.' mismatch');
             }
             $conflict_count += $new_conflict_count;
         }
@@ -639,122 +690,40 @@ sub synchronize {
     return $conflict_count;
 }
 
-sub resolve_conflicts {
-    warn 'too few arguments'  if @_ < 1;
-    warn 'too many arguments' if @_ > 2;
-    my ($nodes,$auto) = @_;
-    $auto //= 0; #/#XXX
-    
-    foreach my $ip (sort keys %$nodes) {
-        my $node = $nodes->{$ip};
-        foreach my $serial (sort keys %{$node->{'devices'}}) {
-            my $device = $node->{'devices'}{$serial};
-            if ($device->{'recognized'}) {
-                foreach my $conflict (sort keys %{$device->{'conflicts'}}) {
-                    while (my $row = shift @{$device->{'conflicts'}{$conflict}}) {
-                        my $ifName = $row->{$config{'InterfaceField'}};
-                        given ($conflict) {
-                            my $suffix = $serial.' at '.$ip.' ('.$node->{'hostname'}.').';
-                            default {
-                                note ($config{'AlertLog'},'Resolution of an unsupported device conflict ('.$conflict.') has been attempted.');
-                            }
-                        }
-                    }
-                    delete $device->{'conflicts'}{$conflict};
-                }
-                delete $device->{'conflicts'};
-                
-                foreach my $ifName (sort keys %{$device->{'interfaces'}}) {
-                    my $interface = $device->{'interfaces'}{$ifName};
-                    if ($interface->{'recognized'}) {
-                        foreach my $conflict (sort keys %{$interface->{'conflicts'}}) {
-                            while (my $row = shift @{$interface->{'conflicts'}{$conflict}}) {
-                                given ($conflict) {
-                                    my $suffix = $serial.' at '.$ip.' ('.$node->{'hostname'}.').';
-                                    when ('duplicate') {
-                                        my $interface = $device->{'interfaces'}{$ifName};
-                                        
-                                        my $new = $auto;
-                                        unless ($auto) {
-                                            my $message = 'There is more than one entry in the database with information for '.$ifName.' on '.$suffix;
-                                            my @choices;
-                                            push (@choices,'(old) ');
-                                            push (@choices,'(new) ');
-                                            foreach my $field (@{$config{'InfoFields'}}) {
-                                                $choices[0] .= ', ' unless $choices[0] eq '(old) ';
-                                                $choices[1] .= ', ' unless $choices[1] eq '(new) ';
-                                                $choices[0] .= $interface->{'info'}{$field};
-                                                $choices[1] .= $row->{$field};
-                                            }
-                                            $new = (choose ($message,\@choices) eq $choices[1]);
-                                        }
-                                        else {
-                                            say 'Duplicate interface ('.$ifName.') on '.$suffix if $config{'Verbose'};
-                                            
-                                        }
-                                        if ($new) {
-                                            $interface->{'info'}{$_} = $row->{$_} foreach @{$config{'InfoFields'}};
-                                        }
-                                    }
-                                    default {
-                                        note ($config{'AlertLog'},'Resolution of an unsupported interface conflict ('.$conflict.') has been attempted.');
-                                    }
-                                }
-                            }
-                            delete $interface->{'conflicts'}{$conflict};
-                        }
-                        delete $interface->{'conflicts'};
-                    }
-                    else {
-                        my $initialized = 0;
-                        unless ($auto) {
-                            say 'An unrecognized interface ('.$ifName.') has been detected on '.$serial.' at '.$ip.' ('.$node->{'hostname'}.') that is not present in the database.';
-                            if (ask 'Would you like to initialize it now?') {
-                                say 'An interface ('.$ifName.') for '.$serial.' on '.$node->{'hostname'}.' is missing information.';
-                                foreach my $field (@{$config{'InfoFields'}}) {
-                                    print ((' 'x$config{'Indent'}).$field.': ');
-                                    $interface->{'info'}{$field} = <>;
-                                }
-                                $interface->{'recognized'} = $initialized = 1;
-                            }
-                        }
-                        note ($config{'UnrecognizedLog'},$ip.' ('.$node->{'hostname'}.') '.$serial.' '.$ifName) unless $initialized;
-                    }
-                }
-            }
-            else {
-                my $initialized = 0;
-                unless ($auto) {
-                    say 'An unrecognized device ('.$serial.') has been detected at '.$ip.' ('.$node->{'hostname'}.') that is not present in the database.';
-                    if (ask 'Would you like to initialize it now?') {
-                        open (STDIN,'<',POSIX::ctermid); #XXX
-                        foreach my $ifName (sort keys %{$device->{'interfaces'}}) {
-                            my $interface = $device->{'interfaces'}{$ifName};
-                            say 'An interface ('.$ifName.') for '.$serial.' on '.$node->{'hostname'}.' is missing information.';
-                            foreach my $field (@{$config{'InfoFields'}}) {
-                                print ((' 'x$config{'Indent'}).$field.': ');
-                                chomp ($interface->{'info'}{$field} = <STDIN>);
-                            }
-                        }
-                        $device->{'recognized'} = $initialized = 1;
-                    }
-                }
-                note ($config{'UnrecognizedLog'},$ip.' ('.$node->{'hostname'}.') '.$serial) unless $initialized;
-            }
-        }
-    }
-}
+=head2 identify (\%nodes[,$data_source[,$auto_match]])
+
+identify discovered nodes in a database
+
+B<Arguments>
+
+=over 3
+
+=item nodes
+
+the discovered nodes to identify
+
+=item [data_source]
+
+the location of the database (DB or a filename)
+
+default: DB
+
+=item [auto_match]
+
+whether to enable interface automatching
+
+default: 0
+
+=back
+
+=cut
 
 sub identify {
     warn 'too few arguments'  if @_ < 1;
     warn 'too many arguments' if @_ > 3;
     my ($nodes,$data_source,$auto_match) = @_;
-    $data_source //= 'DB'; #/#XXX
-    $auto_match  //= 0; #/#XXX
-    
-    my $fields = $config{'DeviceField'}.','.$config{'InterfaceField'};
-    $fields .= ','.join (',',sort @{$config{'InfoFields'}});
-    note ($config{'UnidentifiedCache'},$fields,0,'>'); #XXX : how does this work?
+    $data_source //= 'DB';
+    $auto_match  //= 0;
     
     unless ($config{'Quiet'}) {
         print 'identifying (using '.$data_source.')...';
@@ -762,100 +731,101 @@ sub identify {
     }
     
     my @data;
-    given ($data_source) {
-        when ('DB') {
-            unless (defined $config{'DB'}) {
-                warn 'A database has not been configured.';
-                return undef;
-            }
-            
-            my $DSN = 'dbi:'.$config{'DBMS'};
-            $DSN .= ':host='.$config{'Server'};
-            $DSN .= ';port='.$config{'Port'};
-            $DSN .= ';database='.$config{'Database'};
-            if (defined $config{'DB'}{'DSN'}) {
-                $config{'DB'}{'DSN'} = (ref $config{'DB'}{'DSN'}) ?
-                                            $config{'DB'}{'DSN'} :
-                                           [$config{'DB'}{'DSN'}];
-                $DSN .= ';'.$_ foreach @{$config{'DB'}{'DSN'}};
-            }
-            my $db = DBI->connect($DSN,$config{'Username'},$config{'Password'},{
-                'AutoCommit'         => $config{'AutoCommit'},
-                'PrintError'         => $config{'PrintError'},
-                'PrintWarn'          => $config{'PrintWarn'},
-                'RaiseError'         => $config{'RaiseError'},
-                'ShowErrorStatement' => $config{'ShowErrorStatement'},
-                'TraceLevel'         => $config{'TraceLevel'},
-            });
-            my $query = $db->prepare('SELECT '.$fields.' FROM '.$config{'Table'});
-            $query->execute;
-            @data = @{$query->fetchall_arrayref({})};
-            $db->disconnect;
-        }
-        default {
-            open (my $db,'<',$data_source);
-            
-            my $parser = Text::CSV->new;
-            chomp (my @fields = split (',',<$db>));
-            $parser->column_names(@fields);
-            
-            my $removed_field_count = 0;
-            foreach my $i (keys @fields) {
-                $i -= $removed_field_count;
-                unless ($fields =~ /(^|,)$fields[$i](,|$)/) {
-                    ++$removed_field_count;
-                    splice (@fields,$i,1);
+    { # Retrieve database.    
+        my $fields = $config{'DeviceField'}.','.$config{'InterfaceField'};
+        $fields .= ','.join (',',sort @{$config{'InfoFields'}});
+        
+        my %inputs = (
+            'DB' => sub {
+                unless (defined $config{'DB'}) {
+                    warn 'A database has not been configured.';
+                    return undef;
                 }
-            }
-            die 'incompatible database' unless @fields == scalar split (',',$fields);
-            
-            foreach my $row (@{$parser->getline_hr_all($db)}) {
-                my $entry = {};
-                $entry->{$_} = $row->{$_} foreach @fields;
-                push (@data,$entry);
-            }
-            
-            close $db;
-        }
+                
+                my $DSN  =       'dbi:'.$config{'DBMS'};
+                   $DSN .=     ':host='.$config{'Server'};
+                   $DSN .=     ';port='.$config{'Port'};
+                   $DSN .= ';database='.$config{'Database'};
+                my $db = DBI->connect($DSN,$config{'Username'},$config{'Password'},$config{'DB'});
+                my $query = $db->prepare('SELECT '.$fields.' FROM '.$config{'Table'});
+                $query->execute;
+                @data = @{$query->fetchall_arrayref({})};
+                $db->disconnect;
+            },
+            'default' => sub {
+                open (my $db,'<',$data_source);
+                
+                my $parser = Text::CSV->new;
+                chomp (my @fields = split (',',<$db>));
+                $parser->column_names(@fields);
+                
+                my $removed_field_count = 0;
+                foreach my $i (keys @fields) {
+                    $i -= $removed_field_count;
+                    unless ($fields =~ /(^|,)$fields[$i](,|$)/) {
+                        ++$removed_field_count;
+                        splice (@fields,$i,1);
+                    }
+                }
+                die 'incompatible database' unless @fields == scalar split (',',$fields);
+                
+                foreach my $row (@{$parser->getline_hr_all($db)}) {
+                    my $entry = {};
+                    $entry->{$_} = $row->{$_} foreach @fields;
+                    push (@data,$entry);
+                }
+                
+                close $db;
+            },
+        );
+        ($inputs{$data_source} || $inputs{'default'})->();
     }
     
     my $conflict_count = 0;
     {
-        my %recognized; # $recognized{$serial} == $node
+        my %identified; # $identified{$serial} == $node
         
-        foreach my $row (@data) {
+        ROW : foreach my $row (@data) {
             my $valid = [
                 $config{'DeviceField'},
                 $config{'InterfaceField'},
             ];
-            my $invalid = 0;
             foreach my $field (@$valid) {
-                ++$invalid and last unless defined $row->{$field} and $row->{$field} =~ /\S+/;
+                next ROW unless defined $row->{$field} and $row->{$field} =~ /\S+/;
             }
-            next if $invalid;
             
-            $conflict_count += synchronize ($nodes,\%recognized,$row);
+            $conflict_count += synchronize ($nodes,\%identified,$auto_match,[$row]);
             
             unless ($config{'Quiet'} or $config{'Verbose'}) {
                 print  "\b"x$config{'DeviceOrder'};
-                printf ('%'.$config{'DeviceOrder'}.'d',scalar keys %recognized);
+                printf ('%'.$config{'DeviceOrder'}.'d',scalar keys %identified);
             }
         }
         
         unless ($config{'Quiet'}) {
-            print scalar keys %recognized if $config{'Verbose'};
+            print scalar keys %identified if $config{'Verbose'};
             print ' recognized';
             print ' ('.$conflict_count.' conflicts)' if $conflict_count > 0;
             print "\n";
         }
     }
     
-    { # Resolve conflicts.
-        my $auto = ($conflict_count > 0);
-        my $question = 'Do you want to resolve conflicts now';
-        $question .= ($conflict_count > 0) ? '?' : ' (if any)?' ;
-        $auto = (not ask $question) unless $config{'Quiet'};
-        resolve_conflicts ($nodes,$auto);
+    foreach my $ip (sort keys %$nodes) {
+        my $node = $nodes->{$ip};
+        foreach my $serial (sort keys %{$node->{'devices'}}) {
+            my $device = $node->{'devices'}{$serial};
+            unless ($device->{'identified'}) {
+                note ($config{'ConflictLog'},device_string ($device).' unidentified');
+                next;
+            }
+            foreach my $ifName (sort keys %{$device->{'interfaces'}}) {
+                my $interface = $device->{'interfaces'}{$ifName};
+                unless ($interface->{'identified'}) {
+                    note ($config{'ConflictLog'},interface_string ($interface).' unidentified');
+                    next;
+                }
+            }
+        }
     }
 }
 
@@ -867,25 +837,31 @@ sub identify {
 
 
 
-=head2 update $nodes
+=head2 update \%nodes
 
 push information to interfaces
 
-=head3 Arguments
+B<Arguments>
 
-=head4 nodes
+=over 3
 
-=head3 Example
+=item nodes
+
+the nodes to update
+
+=back
+
+B<Example>
 
 C<update $nodes;>
 
                            Table
  ---------------------------------------------------------
  |  DeviceField  |  InterfaceField  |  InfoFields...     |
- ---------------------------------------------------------           =============
- |   (serial)    |     (ifName)     |(interface-specific)|   --->    || SyncOID ||
- |                          ...                          |           =============
- ---------------------------------------------------------                (device)
+ ---------------------------------------------------------         =============
+ |   (serial)    |     (ifName)     |(interface-specific)|   -->   || SyncOID ||
+ |                          ...                          |         =============
+ ---------------------------------------------------------              (device)
 
 =cut
 
@@ -912,18 +888,15 @@ sub update {
                 
                 my $update = '';
                 my $empty = 1;
-                foreach my $field (keys %{$interface->{'info'}}) {
+                foreach my $field (sort keys %{$interface->{'info'}}) {
                     $update .= "," unless $update eq '';
                     $update .= $field.':'.$interface->{'info'}{$field};
                     $empty = 0 if defined $interface->{'info'}{$field} and $interface->{'info'}{$field} =~ /[\S]+/;
                 }
                 $update = '' if $empty;
                 
-                my $note = '';
-                $note .= $ip.' ('.$node->{'hostname'}.')';
-                $note .= ' '.$serial;
-                $note .= ' '.$ifName.' ('.$interface->{'IID'}.')';
-                my $error = SNMP_set ($config{'SyncOID'},$interface->{'IID'},$update,$node->{'session'});
+                my $note = interface_string ($interface).' ('.$interface->{'IID'}.')';
+                my $error = Netsync::SNMP::set ($config{'SyncOID'},$interface->{'IID'},$update,$node->{'session'});
                 unless ($error) {
                     $update =~ s/\n/,/g;
                     $update =~ s/\s+//g;
@@ -965,18 +938,53 @@ sub update {
 
 =head1 AUTHOR
 
-David Tucker
+David Tucker, C<< <dmtucker at ucsc.edu> >>
+
+=head1 BUGS
+
+Please report any bugs or feature requests to C<bug-netsync at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Netsync>.  I will be notified, and then you'll
+automatically be notified of progress on your bug as I make changes.
+
+=head1 SUPPORT
+
+You can find documentation for this module with the perldoc command.
+
+ perldoc Netsync
+
+You can also look for information at:
+
+=over 4
+
+=item * RT: CPAN's request tracker (report bugs here)
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Netsync>
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/Netsync>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/Netsync>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/Netsync/>
+
+=back
 
 =head1 LICENSE
 
-This file is part of netsync.
-netsync is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-netsync is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-See the GNU General Public License for more details.
-You should have received a copy of the GNU General Public License along with netsync.
-If not, see L<http://www.gnu.org/licenses/>.
+Copyright 2013 David Tucker.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See L<http://dev.perl.org/licenses/> for more information.
 
 =cut
 
 
-1
+1;

@@ -1,32 +1,33 @@
-2013-09-03 : 1.0.0 : Blackberry Abalone
+2013-09-03 : Blackberry Abalone
+    netsync v1.0.0
 
-2013-09-06 : 1.0.1
+2013-09-06 : patch
+    netsync v1.0.1
     - minor dependency removals & major bug fixes
 
-2013-09-06 : 1.0.2
-    - code restructure and patch for 1.0.1 which was unusable
+2013-09-06 : patch
+    netsync v1.0.2
+    - code restructure for v1.0.1 which was unusable
 
-2013-09-20 : 1.0.3
+2013-09-20 : patch
+    netsync v1.0.3
     - update bug fixes
 
-2013-09-20 : 1.1.0 : Pea Abalone
+2013-09-20 : Pea Abalone
+    netsync v1.1.0
     - POD support
 
-2013-09-23 : 2.0.0 : Kiwi Oyster
-    - improvements to corner-case handling
-    - README.md combined with netsync.pod to make README.pod
-    - directory restructure for better conventional FHS support
+2013-10-27 : Kiwi Oyster
+    netsync v2.0.0
+    Netsync v1.0.0
+    Netsync::Network v1.0.0
+    Helpers::Configurator v1.0.0
+    Helpers::Messenger v1.0.0
+    Helpers::Scribe v1.0.0
+    - Update and Match options
+    - DNS option modified
     - Netsync is now an API.
-    - installer
-    - DB cred. requirement bug fixed
+    - DB credential requirement removed.
     - Library module APIs are properly documented and defined.
-    - new options: -u, -m
-
-2013-10-03 : 2.0.1
-    - proper MIB dependencies documented
-
-2013-10-05 : 2.1.0 : Banana Oyster
-    - new options: -M (vendor)
-
-2013-10-10 : 2.2.0 : Raspberry Oyster
-    - run reports
+    - EUMM support
+    - CPAN release

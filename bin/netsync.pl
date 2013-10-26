@@ -1,138 +1,183 @@
 #!/usr/bin/perl
 
-use autodie;
+=head1 NAME
+
+netsync - network/database synchronization utility
+
+=head1 DESCRIPTION
+
+This tool can discover a network and synchronize it with a database.
+
+=head1 SYNOPSIS
+
+ -h --help   Help. Print usage and options.
+ -V          Version. Print build information.
+ -v          Verbose. Print everything.
+ -q          Quiet. Print nothing.
+ -c .ini     Config. Specify a configuration file.
+ -p #        Probe. There are 2 Probe levels:
+               1: Probe the network for active nodes.
+               2: Probe the database for those nodes.
+ -D          DNS. Use your the Domain Name System to retrieve relevant nodes.
+ -m pattern  Match. Only process nodes with hostnames matching the pattern.
+ -d .csv     Database. Specify an RFC4180-compliant database file.
+ -a          Automatch. Enable interface auto-matching.
+ -u          Update. Send interface-specific information to network nodes.
+ nodes       Nodes. Nodes. Specify an RFC1035-compliant list of relevant nodes.
+
+=head1 EXAMPLES
+
+ $ netsync -Dm "host[0-9]+" -au
+
+Z<>
+
+ $ netsync -Dm "host[0-9]+" -p1
+ > configuring (using /etc/netsync/netsync.ini)... done
+ > discovering (using DNS)...  778 nodes (47 skipped), 796 devices (12 stacks)
+
+ $ netsync -ap2 /var/cache/netsync/active.txt 
+ > configuring (using /etc/netsync/netsync.ini)... done
+ > discovering (using /var/cache/netsync/active.txt)...  778 nodes, 796 devices (12 stacks)
+ > identifying (using DBMS)...  664 recognized (2389 conflicts)
+
+ $ netsync -d /var/cache/netsync/synced.csv -a /var/cache/netsync/active.txt 
+ configuring (using /etc/netsync/netsync.ini)... done
+ discovering (using /var/cache/netsync/active.txt)...  778 nodes, 796 devices (12 stacks)
+ identifying (using /var/cache/netsync/synced.csv)...  796 recognized
+
+=cut
+
+
+use autodie; #XXX Is autodie adequate?
 use diagnostics;
 use strict;
 use warnings;
-
 use feature 'say';
 
 use File::Basename;
 use Getopt::Std;
+use Pod::Usage;
 
-use Configurator;
-use FileManager;
+use Helpers::Configurator;
+use Helpers::Scribe ('note');
 use Netsync;
 
 our ($SCRIPT,$VERSION);
-#our ($SCRIPT)  = fileparse ($0,"\.[^.]*");
-#our ($VERSION) = '2.0.0-alpha';
 our %config;
-{
-    $config{'Indent'}  = 4;
-    $config{'Quiet'}   = 0;
-    $config{'Verbose'} = 0;
-    
-    $config{'Options'}   = 'c:p:Dm:d:au';
-    $config{'Arguments'} = '[nodes]';
-    
-    $config{'ConfigFile'} = '/etc/'.$SCRIPT.'/'.$SCRIPT.'.ini';
-    $config{'NodeFile'}   = 'STDIN';
-    $config{'DataFile'}   = 'DB';
-    
-    $config{'HostPattern'} = '[^.]+';
-    $config{'ProbeLevel'}  = 0;
-    $config{'AutoMatch'}   = 0;
-    $config{'Update'}      = 0;
-}
+
 
 BEGIN {
-    ($SCRIPT) = fileparse ($0,"\.[^.]*");
-    $VERSION = '2.0.0-alpha';
-    $config{'Options'}   = 'c:p:Dm:d:au';
-    $config{'Arguments'} = '[nodes]';
+    ($SCRIPT)  = fileparse ($0,"\.[^.]*");
+    ($VERSION) = (2.00);
     
     $Getopt::Std::STANDARD_HELP_VERSION = 1;
     $| = 1;
+    
+    $config{'Options'}   = 'c:p:Dm:d:au';
+    $config{'Arguments'} = '[nodes]';
 }
 
 
 sub VERSION_MESSAGE {
-    say $SCRIPT.' v'.$VERSION;
     say 'Perl v'.$];
-    say 'File::Basename v'.$File::Basename::VERSION;
-    say 'Getopt::Std v'.$Getopt::Std::VERSION;
-    say 'Configurator v'.$Configurator::VERSION;
-    say 'FileManager v'.$FileManager::VERSION;
-    say 'Netsync v'.$Netsync::VERSION;
+    say $SCRIPT.' v'.$VERSION;
+    
+    print "\n";
+    say 'Netsync          v'.$Netsync::VERSION;
+    say 'Netsync::Network v'.$Netsync::Network::VERSION;
+    say 'Netsync::SNMP    v'.$Netsync::SNMP::VERSION;
+    
+    print "\n";
+    say '[Included Modules]';
+    say 'Helpers::Configurator v'.$Helpers::Configurator::VERSION;
+    say 'Helpers::Scribe       v'.$Helpers::Scribe::VERSION;
+    
+    print "\n";
+    say '[Core Modules]';
+    say '   File::Basename v'.$File::Basename::VERSION;
+    say ' Getopt::Std      v'.$Getopt::Std::VERSION;
+    say '    Pod::Usage    v'.$Pod::Usage::VERSION;
+    say '  POSIX           v'.$POSIX::VERSION;
+    say ' Scalar::Util     v'.$Scalar::Util::VERSION;
+    
+    print "\n";
+    say '[CPAN Modules]';
+    say ' Config::Simple v'.$Config::Simple::VERSION;
+    say '    DBI         v'.$DBI::VERSION;
+    say '    Net::DNS    v'.$Net::DNS::VERSION;
+    say '   SNMP         v'.$SNMP::VERSION;
+    say '   SNMP::Info   v'.$SNMP::Info::VERSION;
+    say '   Text::CSV    v'.$Text::CSV::VERSION;
 }
 
 
 sub HELP_MESSAGE {
     my $opts = $config{'Options'};
     $opts =~ s/://g;
-    say $SCRIPT.' [-'.$opts.'] '.$config{'Arguments'};
-    say '  -h --help   Help. Print usage and options.';
-    say '  -V          Version. Print build information.';
-    say '  -v          Verbose. Print everything.';
-    say '  -q          Quiet. Print nothing.';
-    say '  -c .ini     Config. Specify a configuration file.';
-    say '  -p #        Probe. There are 2 Probe levels:';
-    say '                1: Probe the network for active nodes.';
-    say '                2: Probe the database for those nodes.';
-    say "  -D          DNS. Use your network's domain name system to retrieve a list of nodes.";
-    say '  -m pattern  Match. Only discover nodes with hostnames matching the given pattern.';
-    say '  -d .csv     Database. Specify an RFC4180-compliant database file.';
-    say '  -a          Automatch. Enable interface auto-matching.';
-    say '  -u          Update. Send interface-specific information to network nodes.';
-    say '  [nodes]     Nodes. Nodes. Specify an RFC1035-compliant list of network nodes.';
+    pod2usage({
+        '-message' => $SCRIPT.' [-'.$opts.'] '.$config{'Arguments'},
+        '-exitval' => 0,
+        '-verbose' => 0,
+    });
 }
 
 
 INIT {
     my %opts;
     $config{'Options'} = 'hVvq'.$config{'Options'};
-    HELP_MESSAGE    and exit 1 unless getopts ($config{'Options'},\%opts);
-    HELP_MESSAGE    and exit if $opts{'h'};
+       HELP_MESSAGE and exit 1 unless getopts ($config{'Options'},\%opts);
+       HELP_MESSAGE and exit if $opts{'h'};
     VERSION_MESSAGE and exit if $opts{'V'};
-    $config{'Quiet'}   = $opts{'q'} // $config{'Quiet'}; #/#XXX
-    $config{'Verbose'} = $opts{'v'} // $config{'Verbose'}; #/#XXX
-    $config{'Verbose'} = $config{'Quiet'} = 0 if $config{'Verbose'} and $config{'Quiet'};
+    $config{'Verbose'} = (defined $opts{'q'}) ? 0 : $opts{'v'} // 0;
+    $config{'Quiet'}   = $opts{'q'} // 0;
     
-    $config{'ConfigFile'} = $opts{'c'} // $config{'ConfigFile'}; #/#XXX
-    {
-        say 'configuring (using '.$config{'ConfigFile'}.')...' unless $config{'Quiet'};
-        %config = configurate ($config{'ConfigFile'},{
-            $SCRIPT.'.Probe1Cache' => '/var/cache/'.$SCRIPT.'/dns.txt',
-            $SCRIPT.'.Probe2Cache' => '/var/cache/'.$SCRIPT.'/db.csv',
-        });
-        Netsync::configure({
-                %{Configurator::config('Netsync')},
-                'Quiet'      => $config{'Quiet'},
-                'Verbose'    => $config{'Verbose'},
-            },
-            Configurator::config('SNMP'),
-            Configurator::config('DB'),
-            Configurator::config('DNS'),
-        );
+    { # Read the configuration file.
+        $config{'File'} = $opts{'c'} // '/etc/'.$SCRIPT.'/'.$SCRIPT.'.ini';
+        print 'configuring (using '.$config{'File'}.')...' unless $config{'Quiet'};
+        my %conf = Helpers::Configurator::configurate ($config{'File'});
+        $config{$_} = $conf{$_} foreach keys %conf;
+        say ' done' unless $config{'Quiet'};
     }
     
-    $config{'NodeFile'}    = (defined $opts{'D'}) ? 'DNS' : $ARGV[0] // $config{'NodeFile'}; #/#XXX
-    $config{'HostPattern'} = $opts{'m'} // $config{'HostPattern'}; #/#XXX
-    $config{'DataFile'}    = $opts{'d'} // $config{'DataFile'}; #/#XXX
-    $config{'AutoMatch'}   = $opts{'a'} // $config{'AutoMatch'}; #/#XXX
-    $config{'Update'}       = $opts{'u'} // $config{'Update'}; #/#XXX
-    
-    $config{'ProbeLevel'} = $opts{'p'} // 0; #/#XXX
+    $config{'ProbeLevel'} = $opts{'p'} // 0;
     unless ($config{'ProbeLevel'} =~ /^[0-2]$/) {
-        say 'There are only 2 probe levels:';
-        say '    1 : Probe the network for active nodes.';
-        say '    2 : Probe the database for those nodes.';
-        say 'Each level is accumulative (i.e. includes all previous levels).';
-        exit 1;
+        warn 'Invalid ProbeLevel';
+        HELP_MESSAGE and exit 1;
     }
+    $config{'Probe1Cache'} //= '/var/cache/'.$SCRIPT.'/active.txt';
+    $config{'Probe2Cache'} //= '/var/cache/'.$SCRIPT.'/synced.csv';
+    
+    $config{'NodeFile'}  = (defined $opts{'D'}) ? 'DNS' : 'STDIN';
+    $config{'Match'}     = $opts{'m'} // '[^.]+';
+    $config{'DataFile'}  = $opts{'d'} // 'DB';
+    $config{'Automatch'} = $opts{'a'} // 0;
+    $config{'Update'}    = $opts{'u'} // 0;
+    
+    if (defined $ARGV[0]) { $config{'NodeFile'} = $ARGV[0]; }
+    
+    Netsync::configure({
+            %{Helpers::Configurator::config('Netsync')},
+            'Quiet'   => $config{'Quiet'},
+            'Verbose' => $config{'Verbose'},
+        },
+        Helpers::Configurator::config('DNS'),
+        Helpers::Configurator::config('SNMP'),
+        Helpers::Configurator::config('DB'),
+    );
 }
 
 
 {
-    my $nodes = Netsync::discover($config{'NodeFile'},$config{'HostPattern'});
+    my $nodes = Netsync::discover($config{'NodeFile'},$config{'Match'});
     if ($config{'ProbeLevel'} == 1) {
-        note ($config{'Probe1Cache'},$nodes->{$_}{'RFC1035'},0,'>') foreach sort keys %$nodes;
+        foreach my $ip (sort keys %$nodes) {
+            note ($config{'Probe1Cache'},$nodes->{$ip}{'RFC1035'},0,'>');
+        }
         exit;
     }
-    Netsync::identify($nodes,$options{'DataFile'},$config{'AutoMatch'});
+    Netsync::identify($nodes,$config{'DataFile'},$config{'Automatch'});
     if ($config{'ProbeLevel'} == 2) {
-        my $Netsync = Configurator::config('Netsync');
+        my $Netsync = Helpers::Configurator::config('Netsync');
         my $fields = $Netsync->{'DeviceField'}.','.$Netsync->{'InterfaceField'};
         $fields .= ','.join (',',sort @{$Netsync->{'InfoFields'}});
         note ($config{'Probe2Cache'},$fields,0,'>');
@@ -145,7 +190,7 @@ INIT {
                     
                     my $note = $serial.','.$ifName;
                     foreach my $field (sort @{$Netsync->{'InfoFields'}}) {
-                        $note .= ','.($interface->{'info'}{$field} // ''); #/#XXX
+                        $note .= ','.($interface->{'info'}{$field} // '');
                     }
                     note ($config{'Probe2Cache'},$note,0);
                 }
@@ -160,18 +205,53 @@ INIT {
 
 =head1 AUTHOR
 
-David Tucker
+David Tucker, C<< <dmtucker at ucsc.edu> >>
+
+=head1 BUGS
+
+Please report any bugs or feature requests to C<bug-netsync at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Netsync>.  I will be notified, and then you'll
+automatically be notified of progress on your bug as I make changes.
+
+=head1 SUPPORT
+
+You can find documentation for this module with the perldoc command.
+
+ perldoc Netsync
+
+You can also look for information at:
+
+=over 4
+
+=item * RT: CPAN's request tracker (report bugs here)
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Netsync>
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/Netsync>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/Netsync>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/Netsync/>
+
+=back
 
 =head1 LICENSE
 
-This file is part of netsync.
-netsync is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-netsync is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-See the GNU General Public License for more details.
-You should have received a copy of the GNU General Public License along with netsync.
-If not, see L<http://www.gnu.org/licenses/>.
+Copyright 2013 David Tucker.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See L<http://dev.perl.org/licenses/> for more information.
 
 =cut
 
 
-1
+1;

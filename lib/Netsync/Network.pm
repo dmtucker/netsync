@@ -1,51 +1,125 @@
-#!/usr/bin/perl
-
-package Netsync::Networker;
-
-require Exporter;
-@ISA = (Exporter);
-@EXPORT = (
-            'node_initialize','device_initialize','interface_initialize',
-            'node_string'    ,'device_string'    ,'interface_string',
-            'node_dump'      ,'device_dump'      ,'interface_dump',
-            'node_recognize' ,'device_recognize' ,'interface_recognize',
-          );
-
-use feature 'say';
-use feature 'switch';
+package Netsync::Network; #XXX This package should be object-oriented.
 
 =head1 NAME
 
-Netsync::Networker - methods for manipulating netsync's internal view of a network
-
-=head1 SYNOPSIS
-
-C<use Netsync::Networker;>
-
-=cut
-
-
-our $VERSION = '0.2.0';
-
-our %config;
-{
-    $config{'Indent'} = 4;
-}
-
+Netsync::Network - methods for manipulating network structures
 
 =head1 DESCRIPTION
 
 This module is responsible for for manipulating an internal view of a network.
 
+=head1 SYNOPSIS
+ 
+ use Netsync 'devices_interfaces';
+ use Netsync::Network;
+ use feature 'say';
+ 
+ my %node;
+ $node{'ip'}       = '10.0.0.1';
+ $node{'hostname'} = 'host1';
+ $node{'session'}  = Netsync::SNMP::Session $node{'ip'};
+ $node{'info'}     = Netsync::SNMP::Info $session;
+ 
+ my $serial2if2ifName = device_interfaces ($node{'info'}->vendor,$node{'session'});
+ 
+ node_initialize (\%node,$serial2if2ifName);
+ say node_string \%node;
+ node_dump \%node;
+ 
+ # or
+ 
+ device_initialize (\%node,$_,$serial2if2ifName->{$_}) foreach keys $serial2if2ifName;
+ foreach my $serial (keys %{$node{'devices'}}) {
+    my $device = $node{'devices'}{$serial};
+    say device_string $device;
+    device_dump $device;
+ }
+ 
+ # or
+ 
+ foreach my $serial (keys %serial2if2ifName) {
+    $node->{'devices'}{$serial} = \%device;
+    my $device = $node{'devices'}{$serial};
+    $device->{'node'} = $node;
+    
+    my $if2ifName = $serial2if2ifName{$serial};
+    interface_initialize ($device,$if2ifName->{$_},$_) foreach keys %$if2ifName;
+ }
+ 
+ foreach my $serial (keys %{$node{'devices'}}) {
+    my $device = $node{'devices'}{$serial};
+    foreach my $ifName (keys %{$device->{'interfaces'}}) {
+       my interface = device->{'interfaces'}{$ifName};
+       say interface_string $interface;
+       interface_dump $interface;
+    }
+ }
+ 
+ 
+ my %nodes;
+ $nodes{'10.0.0.1'} = \%node;
+ $nodes{'10.0.0.2'}{'ip'} = '10.0.0.2';
+ $nodes{'10.0.0.3'}{'ip'} = '10.0.0.3';
+ $nodes{'10.0.0.4'}{'ip'} = '10.0.0.4';
+ $nodes{'10.0.0.5'}{'ip'} = '10.0.0.5';
+ 
+ my $n = node_find (\%nodes,'10.0.0.5');
+ $n->{'ip'} == '10.0.0.5';
+ 
+ $n->{'devices'}{'1A2B3C4D5E6F'}{'serial'} = '1A2B3C4D5E6F';
+ 
+ my $d = device_find (\%nodes,'1A2B3C4D5E6F');
+ $d->{'serial'} == '1A2B3C4D5E6F';
+ 
+ $d->{'interfaces'}{'ethernet1/1/1'}{'ifName'} = ethernet1/1/1;
+ 
+ my $i = interface_find ($n->{'devices'},'ethernet1/1/1');
+ $i->{'ifName'} = 'ethernet1/1/1';
+
+=cut
+
+
+use 5.006;
+use strict;
+use warnings FATAL => 'all';
+use feature 'say';
+use autodie; #XXX Is autodie adequate?
+
+use File::Basename;
+
+our ($SCRIPT,$VERSION);
+our %config;
+
+BEGIN {
+    ($SCRIPT)  = fileparse ($0,"\.[^.]*");
+    ($VERSION) = (1.00);
+    
+    require Exporter;
+    our @ISA = ('Exporter');
+    our @EXPORT = (
+        'node_initialize','device_initialize','interface_initialize',
+        'node_string'    ,'device_string'    ,'interface_string',
+        'node_dump'      ,'device_dump'      ,'interface_dump',
+        'node_find'      ,'device_find'      ,'interface_find',
+    );
+    
+    $config{'Indent'}  = 4;
+    $config{'Quiet'}   = 0;
+    $config{'Verbose'} = 0;
+}
+
+
 =head1 METHODS
 
-=head2 node_initialize ($node,$serial2if2ifName)
+=head2 node_initialize ($node,\%serial2if2ifName)
 
 initialize a new network node
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<$node>
+=over 3
+
+=item node
 
 the node to initialize
 
@@ -61,13 +135,11 @@ C<$node>
    'session'  => SNMP::Session,
  }
 
-=head4 C<$serial2if2ifName>
+=item serial2if2ifName
 
-a mapping of interfaces to devices (see device_interfaces)
+a mapping of interfaces to devices (see Netsync::device_interfaces)
 
-=head3 Example
-
- node_initialize ($node,device_interfaces ('cisco',SNMP $node->{'ip'}));
+=back
 
 =cut
 
@@ -83,7 +155,7 @@ sub node_initialize {
 }
 
 
-=head2 device_initialize ($node,$serial,$if2ifName)
+=head2 device_initialize ($node,$serial,\%if2ifName)
 
 the device to initialize
 
@@ -101,24 +173,23 @@ C<$device>
    'serial'     => $serial,
  }
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<$node>
+=over 3
+
+=item node
 
 the node to add a new device to
 
-=head4 C<$serial>
+=item serial
 
 the serial number (unique identifier) of the new device  (see node_initialize)
 
-=head4 C<$if2ifName>
+=item if2ifName
 
 a mapping of SNMP interface IIDs to interface names (see device_interfaces)
 
-=head3 Example
-
- $serial2if2ifName = device_interfaces ($node->{'info'}->vendor,$node->{'session'});
- device_initialize ($node,$_,$serial2if2ifName->{$_}) foreach keys $serial2if2ifName;
+=back
 
 =cut
 
@@ -126,7 +197,7 @@ sub device_initialize {
     warn 'too few arguments'  if @_ < 2;
     warn 'too many arguments' if @_ > 3;
     my ($node,$serial,$if2ifName) = @_;
-    $if2ifName //= {}; #/#XXX
+    $if2ifName //= {};
     
     $serial = uc $serial;
     $node->{'devices'}{$serial}{'serial'} = $serial;
@@ -140,7 +211,7 @@ sub device_initialize {
 }
 
 
-=head2 interface_initialize ($device,$ifName,$IID[,$fields])
+=head2 interface_initialize ($device,$ifName,$IID[,\%fields])
 
 the interface to initialize
 
@@ -159,35 +230,35 @@ C<$interface>
    'recognized' => SCALAR,
  }
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<$device>
+=over 3
+
+=item device
 
 the device to add a new interface to
 
-=head4 C<$ifName>
+=item ifName
 
 the name of the new interface
 
-=head4 C<$IID>
+=item IID
 
 the IID of the new interface
 
-=head4 [C<$fields>]
+=item fields
 
 interface-specific key-value pairs
 
-=head3 Example
-
- interface_initialize ($device,$if2ifName->{$_},$_) foreach keys %$if2ifName;
+=back
 
 =cut
 
-sub interface_initialize { #XXX
+sub interface_initialize {
     warn 'too few arguments'  if @_ < 3;
     warn 'too many arguments' if @_ > 4;
     my ($device,$ifName,$IID,$fields) = @_;
-    $fields //= {}; #/#XXX
+    $fields //= {};
     
     $device->{'interfaces'}{$ifName}{'ifName'} = $ifName;
     my $interface = $device->{'interfaces'}{$ifName};
@@ -206,26 +277,17 @@ sub interface_initialize { #XXX
 
 
 
-
-
-
 =head2 node_string @nodes
 
-converts $node structures to strings
+converts $node structure(s) to strings
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<@nodes>
+=over 3
+
+=item nodes
 
 an array of nodes to stringify
-
-=head3 Example
-
-=over 4
-
-=item C<say node_string $node;>
-
- > 10.0.0.1 (host1)
 
 =back
 
@@ -243,7 +305,7 @@ sub node_string {
         }
         push (@node_strings,$node_string);
     }
-    return $node_strings[0] if @node_strings == 1;
+    return $node_strings[0] if @nodes == 1;
     return @node_strings;
 }
 
@@ -252,19 +314,13 @@ sub node_string {
 
 converts $device structures to strings
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<@devices>
+=over 3
+
+=item devices
 
 an array of devices to stringify
-
-=head3 Example
-
-=over 4
-
-=item C<say device_string $device;>
-
- > 1A2B3C4D5E6F at 10.0.0.1 (host1)
 
 =back
 
@@ -282,7 +338,7 @@ sub device_string {
         }
         push (@device_strings,$device_string);
     }
-    return $device_strings[0] if @device_strings == 1;
+    return $device_strings[0] if @devices == 1;
     return @device_strings;
 }
 
@@ -291,19 +347,13 @@ sub device_string {
 
 converts $interface structures to strings
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<@interfaces>
+=over 3
+
+=item interfaces
 
 an array of devices to stringify
-
-=head3 Example
-
-=over 4
-
-=item C<say interface_string $interface;>
-
- > ethernet1/1/1 (1001) on 1A2B3C4D5E6F at 10.0.0.1 (host1)
 
 =back
 
@@ -316,13 +366,13 @@ sub interface_string {
     my @interface_strings;
     foreach my $interface (@interfaces) {
         my $interface_string;
-        if ($interface->{'ifName'} // $interface->{'IID'} // $interface->{'device'} // 0) { #/#XXX
+        if ($interface->{'ifName'} // $interface->{'IID'} // $interface->{'device'} // 0) {
             $interface_string  = $interface->{'ifName'}.' ('.$interface->{'IID'}.')';
             $interface_string .= ' on '.device_string $interface->{'device'};
         }
         push (@interface_strings,$interface_string);
     }
-    return $interface_strings[0] if @interface_strings == 1;
+    return $interface_strings[0] if @interfaces == 1;
     return @interface_strings;
 }
 
@@ -334,38 +384,17 @@ sub interface_string {
 
 
 
-
-
-
 =head2 node_dump @nodes
 
 prints a node structure
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<@nodes>
+=over 3
+
+=item nodes
 
 an array of nodes to print
-
-=head3 Example
-
-=over 4
-
-=item C<node_dump $node>
-
- > 10.0.0.1 (host1)
- >   1 device
- >   # interface(s)
- >   vendor model
- >   1A2B3C4D5E6F
- > 1 node, 1 device
-
-Z<>
-
- > 10.0.0.2 (host2)
- >   3 devices
- >   # interface(s)
- > 1 node, 3 devices (1 stack)
 
 =back
 
@@ -406,7 +435,7 @@ sub node_dump {
         if (defined $node->{'info'}) {
             my $info = $node->{'info'};
             if ($device_count == 1) {
-                #say ((' 'x$config{'Indent'}).$info->class); #XXX
+                #say ((' 'x$config{'Indent'}).$info->class);
                 say ((' 'x$config{'Indent'}).$info->vendor.' '.$info->model);
                 say ((' 'x$config{'Indent'}).$info->serial);
             }
@@ -420,20 +449,13 @@ sub node_dump {
 
 prints a device structure
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<@devices>
+=over 3
+
+=item devices
 
 an array of devices to print
-
-=head3 Example
-
-=over 4
-
-=item C<device_dump $device>
-
- > 1A2B3C4D5E6F at 10.0.0.1 (host1)
- >   # interface(s) (# recognized)
 
 =back
 
@@ -470,22 +492,13 @@ sub device_dump {
 
 prints an interface structure
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<@interfaces>
+=over 3
+
+=item interfaces
 
 an array of interfaces to print
-
-=head3 Example
-
-=over 4
-
-=item C<interface_dump $interface>
-
- > ethernet1/1/1 (1001) on 1A2B3C4D5E6F at 10.0.0.1 (host1)
- >   unrecognized
- >   key: value
- >   ...
 
 =back
 
@@ -520,27 +533,27 @@ sub interface_dump {
 
 
 
-=head2 node_recognize ($nodes,$ip)
+=head2 node_find (\%nodes,$ip)
 
 check for a node in a set of nodes
 
-=head3 Arguments
+B<Arguments>
 
-=head4 nodes
+=over 3
+
+=item nodes
 
 an array of nodes to search
 
-=head4 ip
+=item ip
 
 the IP address of the node
 
-=head3 Example
-
-C<my $node = node_recognize ($nodes,'93.184.216.119');>
+=back
 
 =cut
 
-sub node_recognize {
+sub node_find {
     warn 'too few arguments'  if @_ < 2;
     warn 'too many arguments' if @_ > 2;
     my ($nodes,$ip) = @_;
@@ -549,31 +562,27 @@ sub node_recognize {
 }
 
 
-=head2 device_recognize ($nodes,$serial)
+=head2 device_find (\%nodes,$serial)
 
 check for a device in a set of nodes
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<$nodes>
+=over 3
+
+=item nodes
 
 an array of nodes to search
 
-=head4 C<$serial>
+=item serial
 
 a unique device identifier
-
-=head3 Example
-
-=over 4
-
-=item C<my $device = device_recognize ($nodes,'1A2B3C4D5E6F');>
 
 =back
 
 =cut
 
-sub device_recognize {
+sub device_find {
     warn 'too few arguments'  if @_ < 2;
     warn 'too many arguments' if @_ > 2;
     my ($nodes,$serial) = @_;
@@ -583,7 +592,7 @@ sub device_recognize {
         my $node = $nodes->{$ip};
         if (defined $node->{'devices'}{$serial}) {
             my $device = $node->{'devices'}{$serial};
-            $device->{'recognized'} = 1;
+            $device->{'identified'} = 1;
             return $device;
         }
     }
@@ -591,31 +600,27 @@ sub device_recognize {
 }
 
 
-=head2 interface_recognize ($devices,$ifName)
+=head2 interface_find ($devices,$ifName)
 
 check for a interface in a set of devices
 
-=head3 Arguments
+B<Arguments>
 
-=head4 C<$devices>
+=over 3
+
+=item devices
 
 an array of devices to search
 
-=head4 C<$ifName>
+=item ifName
 
 a unique interface identifier
-
-=head3 Example
-
-=over 4
-
-=item C<my $interface = interface_recognize ($devices,'ethernet1/1/1');>
 
 =back
 
 =cut
 
-sub interface_recognize {
+sub interface_find {
     warn 'too few arguments'  if @_ < 2;
     warn 'too many arguments' if @_ > 2;
     my ($devices,$ifName) = @_;
@@ -624,7 +629,7 @@ sub interface_recognize {
         my $device = $devices->{$serial};
         if (defined $device->{'interfaces'}{$ifName}) {
             my $interface = $device->{'interfaces'}{$ifName};
-            $interface->{'recognized'} = 1;
+            $interface->{'identified'} = 1;
             return $interface;
         }
     }
@@ -634,18 +639,53 @@ sub interface_recognize {
 
 =head1 AUTHOR
 
-David Tucker
+David Tucker, C<< <dmtucker at ucsc.edu> >>
+
+=head1 BUGS
+
+Please report any bugs or feature requests to C<bug-netsync at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Netsync>.  I will be notified, and then you'll
+automatically be notified of progress on your bug as I make changes.
+
+=head1 SUPPORT
+
+You can find documentation for this module with the perldoc command.
+
+ perldoc Netsync
+
+You can also look for information at:
+
+=over 4
+
+=item * RT: CPAN's request tracker (report bugs here)
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Netsync>
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/Netsync>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/Netsync>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/Netsync/>
+
+=back
 
 =head1 LICENSE
 
-This file is part of netsync.
-netsync is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-netsync is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-See the GNU General Public License for more details.
-You should have received a copy of the GNU General Public License along with netsync.
-If not, see L<http://www.gnu.org/licenses/>.
+Copyright 2013 David Tucker.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of either: the GNU General Public License as published
+by the Free Software Foundation; or the Artistic License.
+
+See L<http://dev.perl.org/licenses/> for more information.
 
 =cut
 
 
-1
+1;

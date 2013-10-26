@@ -1,35 +1,35 @@
-tmp/
-var/
+Makefile
+Makefile.old
+Build
+Build.bat
+META.*
+MYMETA.*
+.build/
+_build/
+cover_db/
+blib/
+inc/
+.lwpcookies
+.last_cover_stats
+nytprof.out
+pod2htm*.tmp
+pm_to_blib
+Netsync-*
+Netsync-*.tar.gz
 
-# OS X files
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-.Spotlight-V100
-.Trashes
-*.xcworkspace
-
-# Object files
-*.o
-
-# Libraries
-*.lib
-*.a
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-#bin/
-*.exe
-*.out
-*.app
-
-# Configurations
-# etc/
-# *.ini
+blib/
+.build/
+_build/
+cover_db/
+inc/
+Build
+!Build/
+Build.bat
+.last_cover_stats
+Makefile
+Makefile.old
+MANIFEST.bak
+META.yml
+MYMETA.yml
+nytprof.out
+pm_to_blib
