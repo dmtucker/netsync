@@ -111,11 +111,13 @@ BEGIN {
 
 =head1 METHODS
 
-=head2 node_initialize ($node,\%serial2if2ifName)
+=head2 node_initialize
 
 initialize a new network node
 
 B<Arguments>
+
+I<( $node , \%serial2if2ifName )>
 
 =over 3
 
@@ -155,25 +157,24 @@ sub node_initialize {
 }
 
 
-=head2 device_initialize ($node,$serial,\%if2ifName)
+=head2 device_initialize
 
-the device to initialize
+initialize a new network device
 
 C<$device>
 
  {
-   'conflicts'  => { # This key exists during the identification stage only.
-                     $conflict => ARRAY,
-                   },
    'interfaces' => {
                      $ifName => $interface,
                    },
    'node'       => $node,
-   'recognized' => SCALAR,
+   'identified' => SCALAR,
    'serial'     => $serial,
  }
 
 B<Arguments>
+
+I<( $node , $serial , \%if2ifName )>
 
 =over 3
 
@@ -206,31 +207,30 @@ sub device_initialize {
     foreach my $if (keys %$if2ifName) {
         interface_initialize ($device,$if2ifName->{$if},$if);
     }
-    $device->{'recognized'} = 0;
+    $device->{'identified'} = 0;
     return $device;
 }
 
 
-=head2 interface_initialize ($device,$ifName,$IID[,\%fields])
+=head2 interface_initialize
 
-the interface to initialize
+initialize a new network interface
 
 C<$interface>
 
  {
-   'conflicts'  => { # This key exists during the identification stage only.
-                     'duplicate' => ARRAY,
-                   },
    'device'     => $device,
    'ifName'     => $ifName,
    'IID'        => SCALAR,
    'info'       => {
                      $field => SCALAR,
                    },
-   'recognized' => SCALAR,
+   'identified' => SCALAR,
  }
 
 B<Arguments>
+
+I<( $device , $ifName , $IID [, \%fields ] )>
 
 =over 3
 
@@ -265,7 +265,7 @@ sub interface_initialize {
     $interface->{'device'}     = $device;
     $interface->{'IID'}        = $IID;
     $interface->{'info'}{$_}   = $fields->{$_} foreach keys %$fields;
-    $interface->{'recognized'} = (scalar keys %$fields > 0) ? 1 : 0;
+    $interface->{'identified'} = (scalar keys %$fields > 0) ? 1 : 0;
     return $interface;
 }
 
@@ -277,11 +277,13 @@ sub interface_initialize {
 
 
 
-=head2 node_string @nodes
+=head2 node_string
 
 converts $node structure(s) to strings
 
 B<Arguments>
+
+I<( @nodes )>
 
 =over 3
 
@@ -310,11 +312,13 @@ sub node_string {
 }
 
 
-=head2 device_string @devices
+=head2 device_string
 
 converts $device structures to strings
 
 B<Arguments>
+
+I<( @devices )>
 
 =over 3
 
@@ -343,11 +347,13 @@ sub device_string {
 }
 
 
-=head2 interface_string @interfaces
+=head2 interface_string
 
 converts $interface structures to strings
 
 B<Arguments>
+
+I<( @interfaces )>
 
 =over 3
 
@@ -384,11 +390,13 @@ sub interface_string {
 
 
 
-=head2 node_dump @nodes
+=head2 node_dump
 
 prints a node structure
 
 B<Arguments>
+
+I<( @nodes )>
 
 =over 3
 
@@ -411,24 +419,24 @@ sub node_dump {
         if (defined $node->{'devices'}) {
             $device_count = scalar keys %{$node->{'devices'}};
             
-            my ($recognized_device_count,$interface_count,$recognized_interface_count) = (0,0,0);
+            my ($identified_device_count,$interface_count,$identified_interface_count) = (0,0,0);
             foreach my $serial (keys %{$node->{'devices'}}) {
                 my $device = $node->{'devices'}{$serial};
-                ++$recognized_device_count if $device->{'recognized'};
+                ++$identified_device_count if $device->{'identified'};
                 next unless defined $device->{'interfaces'};
                 $interface_count += scalar keys %{$device->{'interfaces'}};
                 foreach my $ifName (keys %{$device->{'interfaces'}}) {
                     my $interface = $device->{'interfaces'}{$ifName};
-                    ++$recognized_interface_count if $interface->{'recognized'};
+                    ++$identified_interface_count if $interface->{'identified'};
                 }
             }
             print ((' 'x$config{'Indent'}).$device_count.' device');
             print 's' if $device_count > 1;
-            print ' ('.$recognized_device_count.' recognized)' if $recognized_device_count > 0;
+            print ' ('.$identified_device_count.' identified)' if $identified_device_count > 0;
             print "\n";
             print ((' 'x$config{'Indent'}).$interface_count.' interface');
             print 's' if $interface_count > 1;
-            print ' ('.$recognized_interface_count.' recognized)' if $recognized_interface_count > 0;
+            print ' ('.$identified_interface_count.' identified)' if $identified_interface_count > 0;
             print "\n";
         }
         
@@ -445,11 +453,13 @@ sub node_dump {
 }
 
 
-=head2 device_dump @devices
+=head2 device_dump
 
 prints a device structure
 
 B<Arguments>
+
+I<( @devices )>
 
 =over 3
 
@@ -468,31 +478,33 @@ sub device_dump {
     foreach my $device (@devices) {
         say device_string $device;
         
-        if (defined $device->{'recognized'}) {
-            say ((' 'x$config{'Indent'}).(($device->{'recognized'}) ? 'recognized' : 'unrecognized'));
+        if (defined $device->{'identified'}) {
+            say ((' 'x$config{'Indent'}).(($device->{'identified'}) ? 'identified' : 'unidentified'));
         }
         
         if (defined $device->{'interfaces'}) {
             my $interface_count = scalar keys %{$device->{'interfaces'}};
-            my $recognized_interface_count = 0;
+            my $identified_interface_count = 0;
             foreach my $ifName (keys %{$device->{'interfaces'}}) {
                 my $interface = $device->{'interfaces'}{$ifName};
-                ++$recognized_interface_count if $interface->{'recognized'};
+                ++$identified_interface_count if $interface->{'identified'};
             }
             print ((' 'x$config{'Indent'}).$interface_count.' interface');
             print 's' if $interface_count > 1;
-            say ' ('.$recognized_interface_count.' recognized)';
+            say ' ('.$identified_interface_count.' identified)';
         }
     }
     say scalar (@devices).' devices' if @devices > 1;
 }
 
 
-=head2 interface_dump @interfaces
+=head2 interface_dump
 
 prints an interface structure
 
 B<Arguments>
+
+I<( @interfaces )>
 
 =over 3
 
@@ -511,8 +523,8 @@ sub interface_dump {
     foreach my $interface (@interfaces) {
         say interface_string $interface;
         
-        if (defined $interface->{'recognized'}) {
-            say ((' 'x$config{'Indent'}).(($interface->{'recognized'}) ? 'recognized' : 'unrecognized'));
+        if (defined $interface->{'identified'}) {
+            say ((' 'x$config{'Indent'}).(($interface->{'identified'}) ? 'identified' : 'unidentified'));
         }
         
         if (defined $interface->{'info'}) {
@@ -533,11 +545,13 @@ sub interface_dump {
 
 
 
-=head2 node_find (\%nodes,$ip)
+=head2 node_find
 
 check for a node in a set of nodes
 
 B<Arguments>
+
+I<( \%nodes , $ip )>
 
 =over 3
 
@@ -562,11 +576,13 @@ sub node_find {
 }
 
 
-=head2 device_find (\%nodes,$serial)
+=head2 device_find
 
 check for a device in a set of nodes
 
 B<Arguments>
+
+I<( \%nodes , $serial )>
 
 =over 3
 
@@ -600,11 +616,13 @@ sub device_find {
 }
 
 
-=head2 interface_find ($devices,$ifName)
+=head2 interface_find
 
 check for a interface in a set of devices
 
 B<Arguments>
+
+I<( $devices , $ifName )>
 
 =over 3
 
@@ -642,6 +660,9 @@ sub interface_find {
 David Tucker, C<< <dmtucker at ucsc.edu> >>
 
 =head1 BUGS
+
+B<I<This module should be changed to use object-orientation.
+    Until then, all of the included functions are exported!>>
 
 Please report any bugs or feature requests to C<bug-netsync at rt.cpan.org>, or through
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Netsync>.  I will be notified, and then you'll

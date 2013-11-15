@@ -26,7 +26,6 @@ WriteMakefile(
         # Helpers::Configurator
         'Config::Simple' => 4.58,
         # Netsync
-        #XXX 'DBD::Oracle'    => '1.9_3',
         'DBI'            => 1.622,
         'Net::DNS'       => 0.66,
         'Text::CSV'      => 1.32,

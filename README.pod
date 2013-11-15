@@ -11,7 +11,7 @@ netsync is a network synchronization tool that:
  - sends the information it gathers to each device
  - provides ways of producing useful information about the network
 
-Note: All communication with network nodes is done using SNMP.
+I<Note: All communication with network nodes is done using SNMP.>
 
 B<Overview>
 
@@ -57,7 +57,11 @@ I/O framework
 
 =head2 1 Invocation
 
-Note: If installation is skipped, netsync may be manually invoked as follows:
+After installation, netsync may be invoked by name:
+
+ $ netsync
+
+If installation is skipped, netsync may be manually invoked as follows:
 
  $ perl -I lib bin/netsync.pl
 
@@ -69,21 +73,21 @@ B<Options>
 
 Help. Print usage and options.
 
-Note: Help and Version print information and exit.
-      Normal execution is skipped when either of these options are used.
+I<Note: Help and Version print information and exit.
+        Normal execution is skipped when either of these options are used.>
 
 =item -V
 
 Version. Print build information.
 
-Note: Help and Version print information and exit.
-      Normal execution is skipped when either of these options are used.
+I<Note: Help and Version print information and exit.
+        Normal execution is skipped when either of these options are used.>
 
 =item -v
 
 Verbose. Print everything.
 
-Note: Quiet mode overrides Verbose mode.
+I<Note: Quiet mode overrides Verbose mode.>
 
 =item -q
 
@@ -101,6 +105,8 @@ Probe. There are 2 Probe levels.
 
 If the Probe option is used, resources will be created to aid in future runs.
 
+I<Note: Each level corresponds to a stage of execution and is accumulative.>
+
 =over 5
 
 =item Probe Level 1
@@ -113,15 +119,13 @@ Probe the database for those nodes. See the Probe2Cache setting.
 
 =back
 
-Note: Each level corresponds to a stage of execution and is accumulative.
-
 =item -D
 
 DNS. Use your network's domain name system to retrieve a list of nodes.
 
-Note: If neither DNS (-D) nor Nodes are specified,
-      input will be read from standard input (STDIN).
-      If both are present, Nodes is used.
+I<Note: If neither DNS (-D) nor Nodes are specified,
+        input will be read from standard input (STDIN).
+        If both are present, Nodes is used.>
 
 =item -m pattern
 
@@ -135,9 +139,9 @@ Database. Specify an RFC4180-compliant database file.
 
 Automatch. Enable interface auto-matching.
 
-Note: Automatch will be helpful if the database manages interfaces numerically.
-      It aligns numerical ports (e.g. 23) in the database 
-      with ifNames (e.g. ethernet23 or Gi1/0/23) on the device.
+I<Note: Automatch will be helpful if the database manages interfaces numerically.
+        It aligns numerical ports (e.g. 23) in the database 
+        with ifNames (e.g. ethernet23 or Gi1/0/23) on the device.>
 
 =item -u
 
@@ -153,9 +157,9 @@ B<Parameters>
 
 Nodes. Specify an RFC1035-compliant list of network nodes.
 
-Note: If neither DNS (-D) nor Nodes are specified,
-      input will be read from standard input (STDIN).
-      If both are present, Nodes is used.
+I<Note: If neither DNS (-D) nor Nodes are specified,
+        input will be read from standard input (STDIN).
+        If both are present, Nodes is used.>
 
 =back
 
@@ -163,7 +167,7 @@ Note: If neither DNS (-D) nor Nodes are specified,
 
 A configuration file may be specified using the Config (-c) option.
 Otherwise, a generic configuration file (F</etc/netsync/netsync.ini>) is used,
-but it will most likely require additional information before running netsync.
+but it will most likely require additional information before running properly.
 Namely, the following settings must be provided for a typical installation:
 
 =over 3
@@ -171,6 +175,8 @@ Namely, the following settings must be provided for a typical installation:
 =item DNS
 
 B<Required>
+
+I<Note: These settings are unnecessary if only the Nodes parameter is used.>
 
 =over 4
 
@@ -180,8 +186,6 @@ network domain name (e.g. example.com)
 
 =back
 
-Note: The settings above are not necessary if only the Nodes parameter is used.
-
 B<Optional>
 
 See Net::DNS for more options.
@@ -189,6 +193,9 @@ See Net::DNS for more options.
 =item SNMP
 
 B<Required>
+
+I<Note: SNMP settings are unnecessary if a default SNMP environment is used;
+        however, this is HIGHLY insecure and discouraged.>
 
 =over 4
 
@@ -250,9 +257,6 @@ default: public
 
 =back
 
-Note: SNMP settings are not necessary if a default SNMP environment is used;
-      however, this is HIGHLY insecure and discouraged.
-
 B<Optional>
 
 See SNMP::Session for more options.
@@ -275,8 +279,8 @@ B<Synopsis>
  |                          ...                          |         =============
  ---------------------------------------------------------              (device)
 
-Note: If the Update (-u) option is used,
-      netsync will overwrite the device with the corresponding InfoFields.
+I<Note: If the Update (-u) option is used,
+        netsync will overwrite the device with the corresponding InfoFields.>
 
 B<Required>
 
@@ -308,7 +312,7 @@ the authentication key of the user
 
 =back
 
-Note: The settings above are not necessary if only the Database (-d) option is used.
+I<Note: Settings above are unnecessary if only the Database (-d) option is used.>
 
 =over 4
 
@@ -481,7 +485,7 @@ Nodes is a path to a file containing an RFC1035-compliant list of nodes.
  $ netsync -Dqp1
  $ netsync /var/cache/netsync/active.txt
 
-=item standard input (e.g. pipe or keyboard)
+=item STDIN (e.g. pipe or keyboard)
 
 If neither -D nor Nodes are present, a node list is pulled from standard input.
 This allows pipelining with other utilities for extended functionality.
@@ -494,14 +498,14 @@ Z<>
 
 =back
 
-Note: Match (-m) may be used with any of the methods above.
+I<Note: Match (-m) may be used with any of the methods above.>
 
- $ netsync -Dqm "(sw|hub)[0-9]+"
+ $ netsync -Dm "(sw|hub)[0-9]+"
 
 Z<>
 
  $ netsync -Dqp1
- $ netsync -qm "(sw|hub)[0-9]+" /var/cache/netsync/active.txt
+ $ netsync -m "(sw|hub)[0-9]+" /var/cache/netsync/active.txt
 
 Z<>
 
@@ -534,7 +538,7 @@ netsync will try to map each interface to its device (serial).
 If no devices are discovered (or mapping is impossible),
 The node is considered unrecognized and skipped.
 
-Note: Only ASCII serials are supported.
+I<Note: Only ASCII serials are supported.>
 
 B<Supported Vendors>
 
@@ -572,9 +576,9 @@ B<Excluded ifTypes>
 
 =back
 
-=item 2 ifName (1.3.6.1.2.1.31.1.1.1)
+=item 2 ifDescr (1.3.6.1.2.1.2.2.1.2)
 
-Note: ifDescr (1.3.6.1.2.1.2.2.1.2) may be an alternate.
+I<Note: ifName (1.3.6.1.2.1.31.1.1.1) may be an alternate.>
 
 =back
 
@@ -606,14 +610,14 @@ B<Proprietary>
 
  snChasUnitSerNum : 1.3.6.1.4.1.1991.1.1.1.4.1.1.2
 
-Note snChasSerNum (1.3.6.1.4.1.1991.1.1.1.1.2) may be an alternate;
-     however, it does NOT support stacks.
+I<Note: snChasSerNum (1.3.6.1.4.1.1991.1.1.1.1.2) may be an alternate;
+        however, it does NOT support stacks.>
 
 =item Cisco
 
  moduleSerialNumber : 1.3.6.1.4.1.9.5.1.3.1.1.3
 
-Note: moduleSerialNumberString (1.3.6.1.4.1.9.5.1.3.1.1.26) may be an alternate.
+I<Note: moduleSerialNumberString (1.3.6.1.4.1.9.5.1.3.1.1.26) may be an alternate.>
 
 =item HP
 
@@ -625,7 +629,7 @@ Note: moduleSerialNumberString (1.3.6.1.4.1.9.5.1.3.1.1.26) may be an alternate.
 
 B<Standard>
 
-#XXX unknown
+I<Note: There is no known standard for achieving this.>
 
 B<Proprietary>
 
@@ -647,7 +651,7 @@ B<Proprietary>
 
 1.3.6.1.4.1.9.5.1.3.1.1.3
 
-Note: moduleSerialNumberString (1.3.6.1.4.1.9.5.1.3.1.1.26) may be an alternate.
+I<Note: moduleSerialNumberString (1.3.6.1.4.1.9.5.1.3.1.1.26) may be an alternate.>
 
 =back
 
@@ -663,7 +667,7 @@ Note: moduleSerialNumberString (1.3.6.1.4.1.9.5.1.3.1.1.26) may be an alternate.
 
 1.3.6.1.4.1.1991.1.1.3.3.1.1.39
 
-Note: Unit/Module/Interface (U/M/I) is assumed to map Unit to module IID.
+I<Note: Unit/Module/Interface (U/M/I) is assumed to map Unit to module IID.>
 
 =item 3 snChasUnitSerNum
 
@@ -686,22 +690,22 @@ It may subsequently be passed as the Nodes parameter to skip inactive nodes.
 
  $ netsync -Dm "sw[^.]+|hub[0-9]+" -p1
  > configuring (using /etc/netsync/netsync.ini)...
- > discovering (using DBMS)...  480 nodes (10 inactive), 500 devices
+ > discovering (using DBMS)...  480 nodes (10 skipped), 500 devices
  $ netsync /var/cache/netsync/active.txt
  > configuring (using /etc/netsync/netsync.ini)...
  > discovering (using /var/cache/netsync/active.txt)...  480 nodes, 500 devices
- > identifying (using DBMS)...  498 recognized (4 conflicts)
+ > identifying (using DBMS)...  498 synchronized (4 conflicts)
 
-Note: Since the goal of Probe Level 1 is to save time later,
-      unrecognized nodes will not be included in Probe1Cache.
+I<Note: Since the goal of Probe Level 1 is to save time later,
+        unrecognized nodes will not be included in Probe1Cache.>
 
 =head2 7 Identification
 
 Once netsync has a view of the network's hardware,
 it requires a database to find information specific to each interface.
 
-Note: Since netsync treats the database as read-only,
-      the table and fields must already be present in the database.
+I<Note: Since netsync treats the database as read-only,
+        the table and fields must already be present in the database.>
 
 The database may be provided one of two ways:
 
@@ -763,20 +767,20 @@ Probe level 2 is specified using -p2 and updates Probe1Cache and Probe2Cache.
 During Probe Level 2, only the discovery and identification stages are executed.
 It caches identified nodes in Probe2Cache.
 This cache is created in RFC4180-complaint format.
-It may be passed as [nodes] in subsequent runs to skip synchronization.
+It may be passed as Nodes in subsequent runs to skip synchronization.
 
  $ netsync -Dm "host[0-9]+" -a -p2
  > configuring (using /etc/netsync/netsync.ini)... done
- > discovering (using DNS)...  480 nodes (10 inactive), 500 devices
- > identifying (using DBMS)...  498 recognized (4 conflicts)
+ > discovering (using DNS)...  480 nodes (10 skipped), 500 devices
+ > identifying (using DBMS)...  498 synchronized (4 conflicts)
  > Do you want to resolve conflicts now? [y/n] n
  $ netsync -d /var/cache/netsync/synced.csv /var/cache/netsync/active.txt
  > configuring (using /etc/netsync/netsync.ini)... done
  > discovering (using /var/cache/netsync/active.txt)...  480 nodes, 500 devices
- > identifying (using /var/cache/netsync/synced.csv)...  500 recognized
+ > identifying (using /var/cache/netsync/synced.csv)...  500 synchronized
 
-Note: All unidentified hardware will be present in Probe2Cache.
-      This is so the output of Probe Level 2 can serve as a network snapshot.
+I<Note: All unidentified hardware will be present in Probe2Cache.
+        This is so the output of Probe Level 2 can serve as a network snapshot.>
 
 =head2 10 Updating
 
@@ -794,37 +798,37 @@ and is overwritten anytime netsync updates it.
 
  $ netsync -Dm "sw[^.]+|hub[0-9]+" -au
  > configuring (using /etc/netsync/netsync.ini)...
- > discovering (using DNS)...  780 nodes (50 inactive), 800 devices (10 stacks)
- > identifying (using DBMS)...  670 recognized (4 conflicts)
- > updating... #XXX : update this
+ > discovering (using DNS)...  780 nodes (50 skipped), 800 devices (10 stacks)
+ > identifying (using DBMS)...  670 synchronized (4 conflicts)
+ > updating... 670 successful
 
 Z<>
 
  $ dig axfr domain.tld | egrep ^(sw[^.]+|hub[0-9]+) | netsync -a
  > configuring (using /etc/netsync/netsync.ini)...
- > discovering (using STDIN)...  780 nodes (50 inactive), 800 devices
- > identifying (using DBMS)...  670 recognized (4 conflicts)
+ > discovering (using STDIN)...  780 nodes (50 skipped), 800 devices
+ > identifying (using DBMS)...  670 synchronized (4 conflicts)
 
 Z<>
 
  $ netsync -Dm "sw[^.]+|hub[0-9]+" -p1
  > configuring (using /etc/netsync/netsync.ini)...
  > discovering (using DBMS)...  780 nodes (50 inactive), 800 devices
- $ netsync /var/cache/netsync/dns.txt
+ $ netsync /var/cache/netsync/active.txt
  > configuring (using /etc/netsync/netsync.ini)...
- > discovering (using /var/cache/netsync/dns.txt)...  780 nodes, 800 devices
- > identifying (using DBMS)...  670 recognized (4 conflicts)
+ > discovering (using /var/cache/netsync/active.txt)...  780 nodes, 800 devices
+ > identifying (using DBMS)...  670 synchronized (4 conflicts)
 
 Z<>
 
  $ netsync -Dm "sw[^.]+|hub[0-9]+" -a -p2
  > configuring (using /etc/netsync/netsync.ini)...
- > discovering (using DNS)...  780 nodes (50 inactive), 800 devices
- > identifying (using DBMS)...  670 recognized (4 conflicts)
- $ netsync -d /var/cache/netsync/db.csv /var/cache/netsync/dns.txt
+ > discovering (using DNS)...  780 nodes (50 skipped), 800 devices
+ > identifying (using DBMS)...  670 synchronized (4 conflicts)
+ $ netsync -d /var/cache/netsync/synced.csv /var/cache/netsync/active.txt
  > configuring (using /etc/netsync/netsync.ini)...
- > discovering (using /var/cache/netsync/dns.txt)...  780 nodes, 800 devices
- > identifying (using /var/cache/netsync/db.csv)...  800 recognized
+ > discovering (using /var/cache/netsync/active.txt)...  780 nodes, 800 devices
+ > identifying (using /var/cache/netsync/synced.csv)...  800 synchronized
 
 =head1 AUTHOR
 

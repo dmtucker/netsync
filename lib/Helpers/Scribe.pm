@@ -42,11 +42,13 @@ BEGIN {
 
 =head1 METHODS
 
-=head2 timestamp [$format]
+=head2 timestamp
 
 returns an string representing the current time
 
 B<Arguments>
+
+I<( [ $format ] )>
 
 =over 3
 
@@ -70,11 +72,13 @@ sub timestamp {
 }
 
 
-=head2 note ($file,$note[,$stamp[,$mode]])
+=head2 note
 
 writes to a specified file and optionally including a timestamp
 
 B<Arguments>
+
+I<( $file , $note [, $stamp [, $mode ] ] )>
 
 =over 3
 

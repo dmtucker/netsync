@@ -38,18 +38,18 @@ Z<>
  $ netsync -ap2 /var/cache/netsync/active.txt 
  > configuring (using /etc/netsync/netsync.ini)... done
  > discovering (using /var/cache/netsync/active.txt)...  778 nodes, 796 devices (12 stacks)
- > identifying (using DBMS)...  664 recognized (2389 conflicts)
+ > identifying (using DBMS)...  664 synchronized (2389 conflicts)
 
  $ netsync -d /var/cache/netsync/synced.csv -a /var/cache/netsync/active.txt 
  configuring (using /etc/netsync/netsync.ini)... done
  discovering (using /var/cache/netsync/active.txt)...  778 nodes, 796 devices (12 stacks)
- identifying (using /var/cache/netsync/synced.csv)...  796 recognized
+ identifying (using /var/cache/netsync/synced.csv)...  796 synchronized
 
 =cut
 
 
 use autodie; #XXX Is autodie adequate?
-use diagnostics;
+#use diagnostics;
 use strict;
 use warnings;
 use feature 'say';
@@ -82,25 +82,18 @@ sub VERSION_MESSAGE {
     say 'Perl v'.$];
     say $SCRIPT.' v'.$VERSION;
     
-    print "\n";
     say 'Netsync          v'.$Netsync::VERSION;
     say 'Netsync::Network v'.$Netsync::Network::VERSION;
     say 'Netsync::SNMP    v'.$Netsync::SNMP::VERSION;
-    
-    print "\n";
     say '[Included Modules]';
     say 'Helpers::Configurator v'.$Helpers::Configurator::VERSION;
     say 'Helpers::Scribe       v'.$Helpers::Scribe::VERSION;
-    
-    print "\n";
     say '[Core Modules]';
     say '   File::Basename v'.$File::Basename::VERSION;
     say ' Getopt::Std      v'.$Getopt::Std::VERSION;
     say '    Pod::Usage    v'.$Pod::Usage::VERSION;
     say '  POSIX           v'.$POSIX::VERSION;
     say ' Scalar::Util     v'.$Scalar::Util::VERSION;
-    
-    print "\n";
     say '[CPAN Modules]';
     say ' Config::Simple v'.$Config::Simple::VERSION;
     say '    DBI         v'.$DBI::VERSION;
@@ -147,13 +140,12 @@ INIT {
     $config{'Probe1Cache'} //= '/var/cache/'.$SCRIPT.'/active.txt';
     $config{'Probe2Cache'} //= '/var/cache/'.$SCRIPT.'/synced.csv';
     
-    $config{'NodeFile'}  = (defined $opts{'D'}) ? 'DNS' : 'STDIN';
+    chomp ($config{'NodeFile'} = (defined $opts{'D'}) ? 'DNS' : <>);
+    
     $config{'Match'}     = $opts{'m'} // '[^.]+';
     $config{'DataFile'}  = $opts{'d'} // 'DB';
     $config{'Automatch'} = $opts{'a'} // 0;
     $config{'Update'}    = $opts{'u'} // 0;
-    
-    if (defined $ARGV[0]) { $config{'NodeFile'} = $ARGV[0]; }
     
     Netsync::configure({
             %{Helpers::Configurator::config('Netsync')},

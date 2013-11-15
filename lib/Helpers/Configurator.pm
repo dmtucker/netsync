@@ -28,7 +28,7 @@ This package makes using a configuration file simple.
  use Helpers::Configurator;
  
  configurate 'foobar.ini';
- say Helpers::Configurator::config('testGroup','fooSetting');
+ say  Helpers::Configurator::config('testGroup','fooSetting');
  say (Helpers::Configurator::config('testGroup','bazSetting'))[2];
  say {Helpers::Configurator::config('testGroup')}->{'barSetting'};
 
@@ -66,13 +66,15 @@ BEGIN {
 
 =head1 METHODS
 
-=head2 configurate [($file[,\%overrides[,\%defaults]])]
+=head2 configurate
 
 reads a configuration file into the Helpers::Configurator namespace
 
-Note: It will return any configurations in the file found under the E<lt>script nameE<gt> group.
+I<Note: It will return any configurations in the file found under the E<lt>script nameE<gt> group.>
 
 B<Arguments>
+
+I<[ ( $file [, \%overrides [, \%defaults ] ] ) ]>
 
 =over 3
 
@@ -132,13 +134,15 @@ sub configurate {
 }
 
 
-=head2 config ($group[,$query])
+=head2 config
 
 returns an individual setting or group of settings
 
-Note: configurate needs to be run first!
+I<Note: configurate needs to be run first!>
 
 B<Arguments>
+
+I<( $group [, $query ] )>
 
 =over 3
 
@@ -175,7 +179,7 @@ sub config {
 
 prints the current configuration (use sparingly)
 
-Note: configurate needs to be run first!
+I<Note: configurate needs to be run first!>
 
 =cut
 

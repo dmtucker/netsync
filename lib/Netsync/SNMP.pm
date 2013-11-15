@@ -85,9 +85,13 @@ INIT {
 
 =head1 METHODS
 
-=head2 configure (\%environment,\@MIBs)
+=head2 configure
+
+configure the operating environment
 
 B<Arguments>
+
+I<( \%environment , \@MIBs )>
 
 =over 3
 
@@ -144,13 +148,15 @@ sub configure {
 }
 
 
-=head2 Session $ip
+=head2 Session
 
 returns an SNMP::Session object.
 
-Note: configure needs to be run first!
+I<Note: configure needs to be run first!>
 
 B<Arguments>
+
+I<( $ip )>
 
 =over 3
 
@@ -168,33 +174,35 @@ sub Session {
     my ($ip) = @_;
     
     return SNMP::Session->new(
-        'AuthPass'        => $config{'SNMP.AuthPass'},
-        'AuthProto'       => $config{'SNMP.AuthProto'},
-        'Community'       => $config{'SNMP.Community'},
-        'Context'         => $config{'SNMP.Context'},
-        'ContextEngineId' => $config{'SNMP.ContextEngineId'},
+        'AuthPass'        => $config{'AuthPass'},
+        'AuthProto'       => $config{'AuthProto'},
+        'Community'       => $config{'Community'},
+        'Context'         => $config{'Context'},
+        'ContextEngineId' => $config{'ContextEngineId'},
         'DestHost'        => $ip,
-        'PrivPass'        => $config{'SNMP.PrivPass'},
-        'PrivProto'       => $config{'SNMP.PrivProto'},
-        'RemotePort'      => $config{'SNMP.RemotePort'},
-        'Retries'         => $config{'SNMP.Retries'},
-        'RetryNoSuch'     => $config{'SNMP.RetryNoSuch'},
-        'SecEngineId'     => $config{'SNMP.SecEngineId'},
-        'SecLevel'        => $config{'SNMP.SecLevel'},
-        'SecName'         => $config{'SNMP.SecName'},
-        'Timeout'         => $config{'SNMP.Timeout'},
-        'Version'         => $config{'SNMP.Version'},
+        'PrivPass'        => $config{'PrivPass'},
+        'PrivProto'       => $config{'PrivProto'},
+        'RemotePort'      => $config{'RemotePort'},
+        'Retries'         => $config{'Retries'},
+        'RetryNoSuch'     => $config{'RetryNoSuch'},
+        'SecEngineId'     => $config{'SecEngineId'},
+        'SecLevel'        => $config{'SecLevel'},
+        'SecName'         => $config{'SecName'},
+        'Timeout'         => $config{'Timeout'},
+        'Version'         => $config{'Version'},
     );
 }
 
 
-=head2 Info $ip
+=head2 Info
 
 returns an SNMP::Info object
 
-Note: configure needs to be run first!
+I<Note: configure needs to be run first!>
 
 B<Arguments>
+
+I<( $ip )>
 
 =over 3
 
@@ -204,7 +212,7 @@ an IP address to connect to OR an SNMP::Session
 
 =back
 
-Note: The following snippets are equivalent:
+I<Note: The following snippets are equivalent:>
 
 =over 3
 
@@ -230,11 +238,13 @@ sub Info {
 }
 
 
-=head2 get1 (\@OIDs,$ip)
+=head2 get1
 
 attempt to retrieve an OID from a provided list, stopping on success
 
 B<Arguments>
+
+I<( \@OIDs , $ip )>
 
 =over 3
 
@@ -279,11 +289,13 @@ sub get1 {
 }
 
 
-=head2 set ($OID,$IID,$value,$ip)
+=head2 set
 
 attempt to set a new value on a device using SNMP
 
 B<Arguments>
+
+I<( $OID , $IID , $value , $ip )>
 
 =over 3
 

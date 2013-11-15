@@ -91,11 +91,13 @@ INIT {
 
 =head1 METHODS
 
-=head2 configure (\%Netsync[,\%DNS[,\%SNMP[,\%DB]]])
+=head2 configure
 
-configure Netsync operating environment
+configure the operating environment
 
 B<Arguments>
+
+I<( \%Netsync [, \%DNS [, \%SNMP [, \%DB ] ] ] )>
 
 =over 3
 
@@ -104,6 +106,8 @@ B<Arguments>
 key-value pairs of Netsync environment settings
 
 B<Available Environment Settings>
+
+I<Note: If a default is not specified, the setting is required.>
 
 =over 4
 
@@ -123,21 +127,21 @@ the width of fields specifying node and device counts
 
 default: 4
 
-Example
+I<Example>
 
 =over 5
 
-=item DeviceOrder = 3 (nodes < 1000), 500 nodes
+=item DeviceOrder = 3 (i.e. nodes < 1000), 500 nodes
 
- > discovering (using DNS)... 500 nodes (50 inactive), 600 devices (50 stacks)
+ > discovering (using DNS)... 500 nodes (50 skipped), 600 devices (50 stacks)
 
-=item DeviceOrder = 9 (nodes < 1000000000), 500 nodes
+=item DeviceOrder = 9 (i.e. nodes < 1000000000), 500 nodes
 
- > discovering (using DNS)...       500 nodes (50 inactive), 600 devices (50 stacks)
+ > discovering (using DNS)...       500 nodes (50 skipped), 600 devices (50 stacks)
 
-=item DeviceOrder = 1 (nodes < 10), 20 nodes !
+=item DeviceOrder = 1 (i.e. nodes < 10), 20 nodes !
 
- > discovering (using DNS)... 111111111120 nodes (2 inactive), 24 devices (2 stacks)
+ > discovering (using DNS)... 111111111120 nodes (2 skipped), 24 devices (2 stacks)
 
 =back
 
@@ -193,9 +197,7 @@ default: 0
 
 =back
 
-Note: The settings missing defaults above are required for Netsync to operate.
-
-Netsync requires the following settings to use a DBMS:
+I<Netsync requires the following settings to use a DBMS:>
 
 =over 4
 
@@ -225,7 +227,7 @@ the authentication key to use to connect to the database
 
 =back
 
-Netsync requires the following settings to use SNMP:
+I<Netsync requires the following settings to use SNMP:>
 
 =over 4
 
@@ -270,6 +272,7 @@ sub configure {
         warn 'DBMS configuration is inadequate.';
         $success = 0;
     }
+    
     unless (Netsync::SNMP::configure($SNMP,[
         'IF-MIB','ENTITY-MIB',                                # standard
         'CISCO-STACK-MIB',                                    # Cisco
@@ -285,11 +288,13 @@ sub configure {
 }
 
 
-=head2 device_interfaces ($vendor,$session)
+=head2 device_interfaces
 
 discover all the devices and corresponding interfaces of a potentially stacked node
 
 B<Arguments>
+
+I<( $vendor , $session )>
 
 =over 3
 
@@ -350,8 +355,8 @@ sub device_interfaces {
         {
             my ($types) = Netsync::SNMP::get1 ([['.1.3.6.1.2.1.2.2.1.3' => 'ifType']],$session); # IF-MIB
             my ($ifNames,$ifs) = Netsync::SNMP::get1 ([
-                ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],  # IF-MIB
                 ['.1.3.6.1.2.1.2.2.1.2'    => 'ifDescr'], # IF-MIB
+                ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],  # IF-MIB
             ],$session); # IF-MIB
             foreach my $i (keys @$ifs) {
                 unless (defined $types->[$i] and defined $ifNames->[$i]) {
@@ -359,9 +364,6 @@ sub device_interfaces {
                     next;
                 }
                 $if2ifName{$ifs->[$i]} = $ifNames->[$i] if $types->[$i] =~ /^(?!1|24|53)[0-9]+$/;
-                if ($types->[$i] =~ /^(?!1|6|24|53)[0-9]+$/) { #XXX tmp
-                    warn 'A foreign ifType ('.$types->[$i].') has been encountered on interface '.$ifNames->[$i];
-                }
             }
         }
         
@@ -516,21 +518,23 @@ sub recognize {
 }
 
 
-=head2 discover [($node_source[,$host_pattern])]
+=head2 discover
 
 search the network for active nodes
 
 B<Arguments>
 
+I<[ ( $node_source [, $host_pattern ] ) ]>
+
 =over 3
 
-=item [node_source]
+=item node_source
 
 where to get nodes from (DNS, STDIN, or a filename)
 
 default: DNS
 
-=item [host_pattern]
+=item host_pattern
 
 a regular expression to match hostnames from the list of retrieved nodes
 
@@ -549,7 +553,9 @@ sub discover {
     my $nodes = {};
     
     unless ($config{'Quiet'}) {
-        print 'discovering (using '.$node_source.')...';
+        print 'discovering';
+        print ' (using '.(($node_source eq 'DNS') ? 'DNS' : 'STDIN').')';
+        print '...';
         print (($config{'Verbose'}) ? "\n" : (' 'x$config{'DeviceOrder'}).'0');
     }
     
@@ -575,18 +581,14 @@ sub discover {
                 $resolver->print if $config{'Verbose'};
                 push (@zone,$_->string) foreach $resolver->axfr;
             },
-            'default' => sub {
-                open (my $node_file,'<',$node_source);
-                chomp (@zone = <$node_file>);
-                close $node_file;
-            },
+            'default' => sub { @zone = split("\n",$node_source); },
         );
         ($inputs{$node_source} || $inputs{'default'})->();
     }
     
     my ($skip_count,$device_count,$stack_count) = (0,0,0);
     foreach (@zone) {
-        if (/^(?<host>$host_pattern)(\.(?:\S+\.)+\s+(?:\d+)\s+(?:\S+)\s+(?:A|AAAA))?\s+(?<ip>.+)$/) { # upgrade this to support a list of IP addresses
+        if (/^(?<host>$host_pattern)(\.(?:\S+\.)+\s+(?:\d+)\s+(?:\S+)\s+(?:A|AAAA))?\s+(?<ip>.+)$/) { #XXX Upgrade this to support a list of IP addresses.
             $nodes->{$+{'ip'}}{'ip'} = $+{'ip'};
             my $node = $nodes->{$+{'ip'}};
             $node->{'hostname'} = $+{'host'};
@@ -690,11 +692,13 @@ sub synchronize {
     return $conflict_count;
 }
 
-=head2 identify (\%nodes[,$data_source[,$auto_match]])
+=head2 identify
 
 identify discovered nodes in a database
 
 B<Arguments>
+
+I<( \%nodes [, $data_source [, $auto_match ] ] )>
 
 =over 3
 
@@ -702,13 +706,13 @@ B<Arguments>
 
 the discovered nodes to identify
 
-=item [data_source]
+=item data_source
 
 the location of the database (DB or a filename)
 
 default: DB
 
-=item [auto_match]
+=item auto_match
 
 whether to enable interface automatching
 
@@ -726,17 +730,28 @@ sub identify {
     $auto_match  //= 0;
     
     unless ($config{'Quiet'}) {
-        print 'identifying (using '.$data_source.')...';
+        print 'identifying';
+        print ' (using '.$data_source.')...';
         print (($config{'Verbose'}) ? "\n" : (' 'x$config{'DeviceOrder'}).'0');
     }
     
     my @data;
-    { # Retrieve database.    
+    { # Retrieve database.
+        
+        unless (defined $config{'DeviceField'}    and
+                defined $config{'InterfaceField'} and
+                defined $config{'InfoFields'}) {
+            warn 'Database fields have not been configured.';
+            return undef;
+        }
+        
         my $fields = $config{'DeviceField'}.','.$config{'InterfaceField'};
         $fields .= ','.join (',',sort @{$config{'InfoFields'}});
         
         my %inputs = (
             'DB' => sub {
+                my %drivers = DBI->installed_drivers;
+                say $_ foreach values %drivers; exit; #XXX debug
                 unless (defined $config{'DB'}) {
                     warn 'A database has not been configured.';
                     return undef;
@@ -804,7 +819,7 @@ sub identify {
         
         unless ($config{'Quiet'}) {
             print scalar keys %identified if $config{'Verbose'};
-            print ' recognized';
+            print ' synchronized';
             print ' ('.$conflict_count.' conflicts)' if $conflict_count > 0;
             print "\n";
         }
@@ -837,11 +852,13 @@ sub identify {
 
 
 
-=head2 update \%nodes
+=head2 update
 
 push information to interfaces
 
 B<Arguments>
+
+I<( \%nodes )>
 
 =over 3
 
@@ -871,7 +888,8 @@ sub update {
     my ($nodes) = @_;
     
     unless ($config{'Quiet'}) {
-        print 'updating...';
+        print 'updating';
+        print ' (using '.$config{'SyncOID'}.')...';
         print (($config{'Verbose'}) ? "\n" : (' 'x$config{'DeviceOrder'}).'0');
     }
     
@@ -880,11 +898,11 @@ sub update {
         my $node = $nodes->{$ip};
         foreach my $serial (keys %{$node->{'devices'}}) {
             my $device = $node->{'devices'}{$serial};
-            next unless $device->{'recognized'};
+            next unless $device->{'identified'};
             
             foreach my $ifName (keys %{$device->{'interfaces'}}) {
                 my $interface = $device->{'interfaces'}{$ifName};
-                next unless $interface->{'recognized'};
+                next unless $interface->{'identified'};
                 
                 my $update = '';
                 my $empty = 1;
