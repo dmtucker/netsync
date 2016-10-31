@@ -4,7 +4,7 @@ use strict;
 use warnings FATAL => 'all';
 use Test::More;
 
-plan tests => 8;
+plan tests => 7;
 
 sub not_in_file_ok {
     my ($filename, %regex) = @_;
@@ -54,9 +54,7 @@ TODO: {
   module_boilerplate_ok('lib/Netsync/Network.pm');
   module_boilerplate_ok('lib/Netsync/SNMP.pm');
   module_boilerplate_ok('lib/Helpers/Configurator.pm');
-  module_boilerplate_ok('lib/Helpers/Messenger.pm');
   module_boilerplate_ok('lib/Helpers/Scribe.pm');
 
 
 }
-
