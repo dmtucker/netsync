@@ -30,7 +30,8 @@ WriteMakefile(
         'Net::DNS'       => 0.66,
         'Text::CSV'      => 1.32,
         # Netsync::Network
-        'SNMP'           => 5.0702,
+        'NetSNMP::default_store' => 0,
+        #'SNMP'           => 5.0702,
         'SNMP::Info'     => 3.05,
     },
     dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
