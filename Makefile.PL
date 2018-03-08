@@ -14,7 +14,9 @@ WriteMakefile(
         'ExtUtils::MakeMaker' => 0,
     },
     BUILD_REQUIRES => {
+        'Test::CheckManifest' => 0.9,
         'Test::More' => 0,
+        'Test::Pod' => 1.22,
     },
     PREREQ_PM => {
         # Core
