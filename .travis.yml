@@ -2,14 +2,12 @@ branches:
   only:
     - master
 dist: trusty  # This is necessary for net-snmp 5.7.2.
-language: generic  # `Language: perl` causes Travis to build a perl that conflicts with net-snmp.
+language: perl
 sudo: required
 before_install:
-  - sudo apt-get -y install cpanminus libsnmp-dev
+  - sudo apt-get -y install cpanminus libsnmp-perl libsnmp-info-perl
 install:
-  # Without sudo, dependencies will be installed somewhere different than the net-snmp modules.
-  - sudo cpanm -v --installdeps --notest .
+  - sudo cpanm --verbose --installdeps --notest .
 script:
-  # Likewise, sudo allows perl to find system-installed dependencies.
-  - sudo perl Makefile.PL
-  - sudo make test
+  - sudo perl -I lib/ bin/netsync.pl --help
+  - sudo cpanm --verbose .
