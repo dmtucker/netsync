@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!perl
 
 =head1 NAME
 
@@ -35,12 +35,12 @@ Z<>
  > configuring (using /etc/netsync/netsync.ini)... done
  > discovering (using DNS)...  778 nodes (47 skipped), 796 devices (12 stacks)
 
- $ netsync -ap2 /var/cache/netsync/active.txt 
+ $ netsync -ap2 /var/cache/netsync/active.txt
  > configuring (using /etc/netsync/netsync.ini)... done
  > discovering (using /var/cache/netsync/active.txt)...  778 nodes, 796 devices (12 stacks)
  > identifying (using DBMS)...  664 synchronized (2389 conflicts)
 
- $ netsync -d /var/cache/netsync/synced.csv -a /var/cache/netsync/active.txt 
+ $ netsync -d /var/cache/netsync/synced.csv -a /var/cache/netsync/active.txt
  configuring (using /etc/netsync/netsync.ini)... done
  discovering (using /var/cache/netsync/active.txt)...  778 nodes, 796 devices (12 stacks)
  identifying (using /var/cache/netsync/synced.csv)...  796 synchronized
@@ -58,21 +58,21 @@ use File::Basename;
 use Getopt::Std;
 use Pod::Usage;
 
-use Helpers::Configurator;
-use Helpers::Scribe ('note');
-use Netsync;
+use App::Netsync;
+use App::Netsync::Configurator;
+use App::Netsync::Scribe ('note');
 
 our ($SCRIPT,$VERSION);
 our %config;
 
 
 BEGIN {
-    ($SCRIPT)  = fileparse ($0,"\.[^.]*");
+    ($SCRIPT)  = ($0);
     ($VERSION) = (2.00);
-    
+
     $Getopt::Std::STANDARD_HELP_VERSION = 1;
     $| = 1;
-    
+
     $config{'Options'}   = 'c:p:Dm:d:au';
     $config{'Arguments'} = '[nodes]';
 }
@@ -81,13 +81,12 @@ BEGIN {
 sub VERSION_MESSAGE {
     say 'Perl v'.$];
     say $SCRIPT.' v'.$VERSION;
-    
-    say 'Netsync          v'.$Netsync::VERSION;
-    say 'Netsync::Network v'.$Netsync::Network::VERSION;
-    say 'Netsync::SNMP    v'.$Netsync::SNMP::VERSION;
-    say '[Included Modules]';
-    say 'Helpers::Configurator v'.$Helpers::Configurator::VERSION;
-    say 'Helpers::Scribe       v'.$Helpers::Scribe::VERSION;
+
+    say 'App::Netsync               v'.$App::Netsync::VERSION;
+    say 'App::Netsync::Configurator v'.$App::Netsync::Configurator::VERSION;
+    say 'App::Netsync::Network      v'.$App::Netsync::Network::VERSION;
+    say 'App::Netsync::Scribe       v'.$App::Netsync::Scribe::VERSION;
+    say 'App::Netsync::SNMP         v'.$App::Netsync::SNMP::VERSION;
     say '[Core Modules]';
     say '   File::Basename v'.$File::Basename::VERSION;
     say ' Getopt::Std      v'.$Getopt::Std::VERSION;
@@ -123,15 +122,15 @@ INIT {
     VERSION_MESSAGE and exit if $opts{'V'};
     $config{'Verbose'} = (defined $opts{'q'}) ? 0 : $opts{'v'} // 0;
     $config{'Quiet'}   = $opts{'q'} // 0;
-    
+
     { # Read the configuration file.
         $config{'File'} = $opts{'c'} // '/etc/'.$SCRIPT.'/'.$SCRIPT.'.ini';
         print 'configuring (using '.$config{'File'}.')...' unless $config{'Quiet'};
-        my %conf = Helpers::Configurator::configurate ($config{'File'});
+        my %conf = App::Netsync::Configurator::configurate ($config{'File'});
         $config{$_} = $conf{$_} foreach keys %conf;
         say ' done' unless $config{'Quiet'};
     }
-    
+
     $config{'ProbeLevel'} = $opts{'p'} // 0;
     unless ($config{'ProbeLevel'} =~ /^[0-2]$/) {
         warn 'Invalid ProbeLevel';
@@ -139,37 +138,37 @@ INIT {
     }
     $config{'Probe1Cache'} //= '/var/cache/'.$SCRIPT.'/active.txt';
     $config{'Probe2Cache'} //= '/var/cache/'.$SCRIPT.'/synced.csv';
-    
+
     chomp ($config{'NodeFile'} = (defined $opts{'D'}) ? 'DNS' : <>);
-    
+
     $config{'Match'}     = $opts{'m'} // '[^.]+';
     $config{'DataFile'}  = $opts{'d'} // 'DB';
     $config{'Automatch'} = $opts{'a'} // 0;
     $config{'Update'}    = $opts{'u'} // 0;
-    
-    Netsync::configure({
-            %{Helpers::Configurator::config('Netsync')},
+
+    App::Netsync::configure({
+            %{App::Netsync::Configurator::config('Netsync')},
             'Quiet'   => $config{'Quiet'},
             'Verbose' => $config{'Verbose'},
         },
-        Helpers::Configurator::config('DNS'),
-        Helpers::Configurator::config('SNMP'),
-        Helpers::Configurator::config('DB'),
+        App::Netsync::Configurator::config('DNS'),
+        App::Netsync::Configurator::config('SNMP'),
+        App::Netsync::Configurator::config('DB'),
     );
 }
 
 
 {
-    my $nodes = Netsync::discover($config{'NodeFile'},$config{'Match'});
+    my $nodes = App::Netsync::discover($config{'NodeFile'},$config{'Match'});
     if ($config{'ProbeLevel'} == 1) {
         foreach my $ip (sort keys %$nodes) {
             note ($config{'Probe1Cache'},$nodes->{$ip}{'RFC1035'},0,'>');
         }
         exit;
     }
-    Netsync::identify($nodes,$config{'DataFile'},$config{'Automatch'});
+    App::Netsync::identify($nodes,$config{'DataFile'},$config{'Automatch'});
     if ($config{'ProbeLevel'} == 2) {
-        my $Netsync = Helpers::Configurator::config('Netsync');
+        my $Netsync = App::Netsync::Configurator::config('Netsync');
         my $fields = $Netsync->{'DeviceField'}.','.$Netsync->{'InterfaceField'};
         $fields .= ','.join (',',sort @{$Netsync->{'InfoFields'}});
         note ($config{'Probe2Cache'},$fields,0,'>');
@@ -179,7 +178,7 @@ INIT {
                 my $device = $node->{'devices'}{$serial};
                 foreach my $ifName (sort keys %{$device->{'interfaces'}}) {
                     my $interface = $device->{'interfaces'}{$ifName};
-                    
+
                     my $note = $serial.','.$ifName;
                     foreach my $field (sort @{$Netsync->{'InfoFields'}}) {
                         $note .= ','.($interface->{'info'}{$field} // '');
@@ -190,7 +189,7 @@ INIT {
         }
         exit;
     }
-    Netsync::update $nodes if $config{'Update'};
+    App::Netsync::update $nodes if $config{'Update'};
     exit;
 }
 
@@ -202,14 +201,14 @@ David Tucker, C<< <dmtucker at ucsc.edu> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-netsync at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Netsync>.  I will be notified, and then you'll
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=App-Netsync>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
- perldoc Netsync
+ perldoc App::Netsync
 
 You can also look for information at:
 
@@ -217,19 +216,19 @@ You can also look for information at:
 
 =item * RT: CPAN's request tracker (report bugs here)
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Netsync>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=App-Netsync>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/Netsync>
+L<http://annocpan.org/dist/App-Netsync>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/Netsync>
+L<http://cpanratings.perl.org/d/App-Netsync>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/Netsync/>
+L<http://search.cpan.org/dist/App-Netsync/>
 
 =back
 

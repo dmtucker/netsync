@@ -9,5 +9,5 @@ before_install:
 install:
   - sudo cpanm --verbose --installdeps --notest .
 script:
-  - sudo perl -I lib/ bin/netsync.pl --help
   - sudo cpanm --verbose .
+  - sudo netsync --help
