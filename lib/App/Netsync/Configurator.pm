@@ -1,8 +1,8 @@
-package Helpers::Configurator;
+package App::Netsync::Configurator;
 
 =head1 NAME
 
-Helpers::Configurator - configuration file support
+App::Netsync::Configurator - configuration file support
 
 =head1 DESCRIPTION
 
@@ -21,16 +21,16 @@ This package makes using a configuration file simple.
 
 =item F<foobar.pl>
 
- #!/usr/bin/perl
- 
+ #!/usr/bin/env perl
+
  use feature 'say';
- 
- use Helpers::Configurator;
- 
+
+ use App::Netsync::Configurator;
+
  configurate 'foobar.ini';
- say  Helpers::Configurator::config('testGroup','fooSetting');
- say (Helpers::Configurator::config('testGroup','bazSetting'))[2];
- say {Helpers::Configurator::config('testGroup')}->{'barSetting'};
+ say  App::Netsync::Configurator::config('testGroup','fooSetting');
+ say (App::Netsync::Configurator::config('testGroup','bazSetting'))[2];
+ say {App::Netsync::Configurator::config('testGroup')}->{'barSetting'};
 
 =back
 
@@ -68,7 +68,7 @@ BEGIN {
 
 =head2 configurate
 
-reads a configuration file into the Helpers::Configurator namespace
+reads a configuration file into the App::Netsync::Configurator namespace
 
 I<Note: It will return any configurations in the file found under the E<lt>script nameE<gt> group.>
 
@@ -102,7 +102,7 @@ sub configurate {
     $file      //= '/etc/'.$SCRIPT.'/'.$SCRIPT.'.ini';
     $overrides //= {};
     $defaults  //= {};
-    
+
     {
         open (my $ini,'<',$file);
         my $parser = Config::Simple->new($file);
@@ -113,9 +113,9 @@ sub configurate {
         }
         close $ini;
     }
-    
+
     $config{$_} = $defaults->{$_} foreach keys %$defaults;
-    
+
     {
         my %imports;
         Config::Simple->import_from($file,\%imports);
@@ -123,9 +123,9 @@ sub configurate {
             $config{$_} = $imports{$_} unless ref $imports{$_} and not defined $imports{$_}[0];
         }
     }
-    
+
     $config{$_} = $overrides->{$_} foreach keys %$overrides;
-    
+
     my %settings;
     foreach (keys %config) {
         $settings{$+{'setting'}} = $config{$_} if /^$SCRIPT\.(?<setting>.*)$/;
@@ -162,9 +162,9 @@ sub config {
     warn 'too few arguments'  if @_ < 1;
     warn 'too many arguments' if @_ > 2;
     my ($group,$query) = @_;
-    
+
     return $config{$group.'.'.$query} if defined $query;
-    
+
     my $responses;
     foreach (keys %config) {
         if (/^(?<grp>[^.]*)\.(?<qry>.*)$/) {
@@ -185,7 +185,7 @@ I<Note: configurate needs to be run first!>
 
 sub dump {
     warn 'too many arguments' if @_ > 0;
-    
+
     say $_.' = '.($config{$_} // 'undef') foreach sort keys %config;
 }
 
@@ -197,14 +197,14 @@ David Tucker, C<< <dmtucker at ucsc.edu> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-netsync at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Netsync>.  I will be notified, and then you'll
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=App-Netsync>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
- perldoc Netsync
+ perldoc App::Netsync
 
 You can also look for information at:
 
@@ -212,19 +212,19 @@ You can also look for information at:
 
 =item * RT: CPAN's request tracker (report bugs here)
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Netsync>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=App-Netsync>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/Netsync>
+L<http://annocpan.org/dist/App-Netsync>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/Netsync>
+L<http://cpanratings.perl.org/d/App-Netsync>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/Netsync/>
+L<http://search.cpan.org/dist/App-Netsync/>
 
 =back
 

@@ -1,8 +1,8 @@
-package Netsync::SNMP;
+package App::Netsync::SNMP;
 
 =head1 NAME
 
-Netsync::SNMP - SNMP framework
+App::Netsync::SNMP - SNMP framework
 
 =head1 DESCRIPTION
 
@@ -10,9 +10,9 @@ This package contains functions for handling SNMP communications.
 
 =head1 SYNOPSIS
 
- use Netsync::SNMP;
- 
- Netsync::SNMP::configure({
+ use App::Netsync::SNMP;
+
+ App::Netsync::SNMP::configure({
      'SecName'   => 'your username here',
      'SecLevel'  => 'AuthPriv',
      'AuthProto' => 'SHA',
@@ -25,19 +25,19 @@ This package contains functions for handling SNMP communications.
      'FOUNDRY-SN-AGENT-MIB', # Brocade
      'SEMI-MIB',             # HP
  ]);
- 
+
  my $ip      = '93.184.216.119';
- my $session = Netsync::SNMP::Session $ip;
- 
- my $info1   = Netsync::SNMP::Info $ip;
- my $info2   = Netsync::SNMP::Info $session;
- 
- my ($ifNames,$ifIIDs) = Netsync::SNMP::get1 ([
+ my $session = App::Netsync::SNMP::Session $ip;
+
+ my $info1   = App::Netsync::SNMP::Info $ip;
+ my $info2   = App::Netsync::SNMP::Info $session;
+
+ my ($ifNames,$ifIIDs) = App::Netsync::SNMP::get1 ([
      ['.1.3.6.1.2.1.31.1.1.1.1' => 'ifName'],
      ['.1.3.6.1.2.1.2.2.1.2'    => 'ifDescr'],
  ],$session);
- 
- Netsync::SNMP::set ('ifAlias',$_,'Vote for Pedro',$session) foreach @$ifIIDs;
+
+ App::Netsync::SNMP::set ('ifAlias',$_,'Vote for Pedro',$session) foreach @$ifIIDs;
 
 =cut
 
@@ -77,7 +77,7 @@ INIT {
     $config{'SecName'}         = 'initial';
     $config{'Timeout'}         = 1000000;
     $config{'Version'}         = 3;
-    
+
     $config{'MIBdir'}          = '/usr/share/'.$SCRIPT.'/mib';
     SNMP::addMibDirs($config{'MIBdir'});
 }
@@ -125,9 +125,9 @@ sub configure {
     warn 'too few arguments'  if @_ < 2;
     warn 'too many arguments' if @_ > 2;
     my ($environment,$MIBs) = @_;
-    
+
     $config{$_} = $environment->{$_} foreach keys %$environment;
-    
+
     my $success = 1;
     foreach my $MIB (@$MIBs) {
         if (defined $MIB) {
@@ -135,7 +135,7 @@ sub configure {
         }
     }
     SNMP::initMib();
-    
+
     $config{'ContextEngineId'} //= $config{'SecEngineId'};
     unless (($config{'Version'} < 3) or
             ($config{'SecLevel'} eq 'noAuthNoPriv') or
@@ -172,7 +172,7 @@ sub Session {
     warn 'too few arguments'  if @_ < 1;
     warn 'too many arguments' if @_ > 1;
     my ($ip) = @_;
-    
+
     return SNMP::Session->new(
         'AuthPass'        => $config{'AuthPass'},
         'AuthProto'       => $config{'AuthProto'},
@@ -216,9 +216,9 @@ I<Note: The following snippets are equivalent:>
 
 =over 3
 
-=item C<Netsync::SNMP::Info $ip;>
+=item C<App::Netsync::SNMP::Info $ip;>
 
-=item C<Netsync::SNMP::Info Netsync::SNMP::Session $ip;>
+=item C<App::Netsync::SNMP::Info App::Netsync::SNMP::Session $ip;>
 
 =back
 
@@ -228,7 +228,7 @@ sub Info {
     warn 'too few arguments'  if @_ < 1;
     warn 'too many arguments' if @_ > 1;
     my ($ip) = @_;
-    
+
     my $session = Session $ip;
     my $info = SNMP::Info->new(
         'AutoSpecify' => 1,
@@ -264,14 +264,14 @@ sub get1 {
     warn 'too few arguments'  if @_ < 2;
     warn 'too many arguments' if @_ > 2;
     my ($OIDs,$ip) = @_;
-    
+
     my $session = $ip;
     unless (blessed $session and $session->isa('SNMP::Session')) {
         return undef if ref $session;
         $session = SNMP $session;
         return undef unless defined $session;
     }
-    
+
     my (@objects,@IIDs);
     foreach my $OID (@$OIDs) {
         my $query = SNMP::Varbind->new([$OID->[0]]);
@@ -323,14 +323,14 @@ sub set {
     warn 'too few arguments'  if @_ < 4;
     warn 'too many arguments' if @_ > 4;
     my ($OID,$IID,$value,$ip) = @_;
-    
+
     my $session = $ip;
     unless (blessed $session and $session->isa('SNMP::Session')) {
         return undef if ref $session;
         $session = SNMP $session;
         return undef unless defined $session;
     }
-    
+
     my $query = SNMP::Varbind->new([$OID,$IID,$value]);
     $session->set($query);
     return ($session->{'ErrorNum'}) ? $session->{'ErrorStr'} : 0;
@@ -344,14 +344,14 @@ David Tucker, C<< <dmtucker at ucsc.edu> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-netsync at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Netsync>.  I will be notified, and then you'll
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=App-Netsync>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
- perldoc Netsync
+ perldoc App::Netsync
 
 You can also look for information at:
 
@@ -359,19 +359,19 @@ You can also look for information at:
 
 =item * RT: CPAN's request tracker (report bugs here)
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Netsync>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=App-Netsync>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/Netsync>
+L<http://annocpan.org/dist/App-Netsync>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/Netsync>
+L<http://cpanratings.perl.org/d/App-Netsync>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/Netsync/>
+L<http://search.cpan.org/dist/App-Netsync/>
 
 =back
 

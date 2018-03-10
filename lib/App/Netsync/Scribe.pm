@@ -1,8 +1,8 @@
-package Helpers::Scribe; #XXX Log::Message?
+package App::Netsync::Scribe; #XXX Log::Message?
 
 =head1 NAME
 
-Helpers::Scribe - I/O framework
+App::Netsync::Scribe - I/O framework
 
 =head1 DESCRIPTION
 
@@ -10,8 +10,8 @@ This package handles I/O automatically.
 
 =head1 SYNOPSIS
 
- use Helpers::Scribe;
- 
+ use App::Netsync::Scribe;
+
  print timestamp;
  note('foo.txt','Don't stamp this note.',0);
 
@@ -33,7 +33,7 @@ our %files;
 BEGIN {
     ($SCRIPT)  = fileparse ($0,"\.[^.]*");
     ($VERSION) = (1.00);
-    
+
     require Exporter;
     our @ISA = ('Exporter');
     our @EXPORT_OK = ('note','timestamp');
@@ -66,7 +66,7 @@ sub timestamp {
     warn 'too many arguments' if @_ > 1;
     my ($format) = @_;
     $format //= '%Y:%m:%d:%H:%M:%S';
-    
+
     my $timestamp = POSIX::strftime($format,localtime);
     return $timestamp;
 }
@@ -112,7 +112,7 @@ sub note {
     my ($file,$note,$stamp,$mode) = @_;
     $stamp //= 1;
     $mode  //= '>>';
-    
+
     open  ($files{$file},$mode,$file) unless defined $files{$file};
     print {$files{$file}} timestamp.' ' if $stamp;
     say   {$files{$file}} $note;
@@ -134,14 +134,14 @@ David Tucker, C<< <dmtucker at ucsc.edu> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-netsync at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Netsync>.  I will be notified, and then you'll
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=App-Netsync>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
- perldoc Netsync
+ perldoc App::Netsync
 
 You can also look for information at:
 
@@ -149,19 +149,19 @@ You can also look for information at:
 
 =item * RT: CPAN's request tracker (report bugs here)
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Netsync>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=App-Netsync>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/Netsync>
+L<http://annocpan.org/dist/App-Netsync>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/Netsync>
+L<http://cpanratings.perl.org/d/App-Netsync>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/Netsync/>
+L<http://search.cpan.org/dist/App-Netsync/>
 
 =back
 

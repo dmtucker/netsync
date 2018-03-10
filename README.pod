@@ -1,6 +1,6 @@
 =head1 NAME
 
-Netsync - network/database synchronization utility/library
+App::Netsync - network/database synchronization utility/library
 
 =begin HTML
 
@@ -34,6 +34,10 @@ See F<doc/algorithm.svg> for corresponding visual guidance
 
 =head2 0 Installation
 
+ $ cpan App::foo
+
+or
+
  $ perl Makefile.PL
  $ make
  $ make test
@@ -43,19 +47,19 @@ B<Modules>
 
 =over 4
 
-=item Netsync::Network
+=item App::Netsync::Network
 
 methods for manipulating network structures
 
-=item Netsync::SNMP
+=item App::Netsync::SNMP
 
 SNMP framework
 
-=item Helpers::Configurator
+=item App::Netsync::Configurator
 
 configuration file support
 
-=item Helpers::Scribe
+=item App::Netsync::Scribe
 
 I/O framework
 
@@ -146,7 +150,7 @@ Database. Specify an RFC4180-compliant database file.
 Automatch. Enable interface auto-matching.
 
 I<Note: Automatch will be helpful if the database manages interfaces numerically.
-        It aligns numerical ports (e.g. 23) in the database 
+        It aligns numerical ports (e.g. 23) in the database
         with ifNames (e.g. ethernet23 or Gi1/0/23) on the device.>
 
 =item -u
@@ -843,14 +847,14 @@ David Tucker, C<< <dmtucker at ucsc.edu> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-netsync at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Netsync>.  I will be notified, and then you'll
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=App-Netsync>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
- perldoc Netsync
+ perldoc App::Netsync
 
 You can also look for information at:
 
@@ -858,19 +862,19 @@ You can also look for information at:
 
 =item * RT: CPAN's request tracker (report bugs here)
 
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Netsync>
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=App-Netsync>
 
 =item * AnnoCPAN: Annotated CPAN documentation
 
-L<http://annocpan.org/dist/Netsync>
+L<http://annocpan.org/dist/App-Netsync>
 
 =item * CPAN Ratings
 
-L<http://cpanratings.perl.org/d/Netsync>
+L<http://cpanratings.perl.org/d/App-Netsync>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/Netsync/>
+L<http://search.cpan.org/dist/App-Netsync/>
 
 =back
 
