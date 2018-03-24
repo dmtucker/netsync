@@ -73,7 +73,7 @@ After installation, netsync may be invoked by name:
 
 If installation is skipped, netsync may be manually invoked as follows:
 
- $ perl -I lib bin/netsync.pl
+ $ perl -I lib script/netsync
 
 B<Options>
 
