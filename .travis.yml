@@ -9,5 +9,8 @@ before_install:
 install:
   - sudo cpanm --verbose --installdeps --notest .
 script:
-  - sudo cpanm --verbose .
+  - sudo perl Makefile.PL
+  - sudo make manifest
+  - sudo make dist
+  - sudo RELEASE_TESTING=true cpanm --verbose App-Netsync-*.tar.gz
   - sudo netsync --help

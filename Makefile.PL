@@ -41,6 +41,7 @@ WriteMakefile(
     },
     BUILD_REQUIRES => {
         'Test::CheckManifest' => 0.9,
+        'Test::Kwalitee'      => 0,
         'Test::More'          => 0,
         'Test::Pod'           => 1.22,
     },
