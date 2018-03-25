@@ -47,21 +47,21 @@ B<Modules>
 
 =over 4
 
-=item App::Netsync::Network
-
-methods for manipulating network structures
-
-=item App::Netsync::SNMP
-
-SNMP framework
-
 =item App::Netsync::Configurator
 
 configuration file support
 
+=item App::Netsync::Network
+
+methods for manipulating network structures
+
 =item App::Netsync::Scribe
 
 I/O framework
+
+=item App::Netsync::SNMP
+
+SNMP framework
 
 =back
 
