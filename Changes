@@ -36,3 +36,6 @@
     - Refactor the project and rename to App::Netsync.
     - Publish to CPAN for the first time.
     - Unify versions.
+
+2013-09-20 : v3.0.1 patch
+    - Fix Kwalitee issues.
