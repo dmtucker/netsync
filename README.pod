@@ -34,7 +34,7 @@ See F<doc/algorithm.svg> for corresponding visual guidance
 
 =head2 0 Installation
 
- $ cpan App::foo
+ $ cpan App::Netsync
 
 or
 
