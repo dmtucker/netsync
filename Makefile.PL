@@ -9,33 +9,40 @@ WriteMakefile(
     VERSION_FROM       => 'lib/App/Netsync.pm',
     ABSTRACT_FROM      => 'lib/App/Netsync.pm',
     LICENSE            => 'Perl_5',
-    META_ADD => {
+    META_MERGE => {
+        'meta-spec' => {version => '2'},
         provides => {
             'App::Netsync' => {
                 file    => 'lib/App/Netsync.pm',
-                version => '3.01',
+                version => 'v4.0.0',
             },
             'App::Netsync::Configurator' => {
                 file    => 'lib/App/Netsync/Configurator.pm',
-                version => '3.01',
+                version => 'v4.0.0',
             },
             'App::Netsync::Network' => {
                 file    => 'lib/App/Netsync/Network.pm',
-                version => '3.01',
+                version => 'v4.0.0',
             },
             'App::Netsync::Scribe' => {
                 file    => 'lib/App/Netsync/Scribe.pm',
-                version => '3.01',
+                version => 'v4.0.0',
             },
             'App::Netsync::SNMP' => {
                 file    => 'lib/App/Netsync/SNMP.pm',
-                version => '3.01',
+                version => 'v4.0.0',
             },
         },
-        repository => 'https://github.com/dmtucker/netsync',
+        resources => {
+            repository => {
+                type => 'git',
+                url  => 'https://github.com/dmtucker/netsync.git',
+                web  => 'https://github.com/dmtucker/netsync',
+            },
+        },
     },
     EXE_FILES => ['script/netsync'],
-    MIN_PERL_VERSION => '5.006',
+    MIN_PERL_VERSION => '5.010001',
     CONFIGURE_REQUIRES => {
         'ExtUtils::MakeMaker' => 0,
     },
@@ -47,11 +54,12 @@ WriteMakefile(
     },
     PREREQ_PM => {
         # Core
-        'File::Basename' => 2.84,
-        'Getopt::Std'    => 1.07,
+        'File::Basename' => 0,
+        'Getopt::Std'    => 0,
         'Pod::Usage'     => 1.61,
-        'POSIX'          => 1.32,
+        'POSIX'          => 0,
         'Scalar::Util'   => 1.32,
+        'version'        => 0.9917,
         # App::Netsync
         'DBI'            => 1.622,
         'Net::DNS'       => 0.66,

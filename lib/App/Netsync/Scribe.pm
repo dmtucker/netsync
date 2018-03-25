@@ -26,13 +26,14 @@ use feature 'say';
 
 use File::Basename;
 use POSIX;
+use version;
 
 our ($SCRIPT,$VERSION);
 our %files;
 
 BEGIN {
     ($SCRIPT)  = fileparse ($0,"\.[^.]*");
-    ($VERSION) = (3.01);
+    ($VERSION) = version->declare('v4.0.0');
 
     require Exporter;
     our @ISA = ('Exporter');

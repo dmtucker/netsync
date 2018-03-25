@@ -37,5 +37,8 @@
     - Publish to CPAN for the first time.
     - Unify versions.
 
-2013-09-20 : v3.0.1 patch
+2017-03-24 : v3.0.1 patch
     - Fix Kwalitee issues.
+
+2017-03-25 : v4.0.0 (big) patch
+    - Use a string for the (incorrectly numified) version.
