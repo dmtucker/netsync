@@ -57,7 +57,7 @@ our %config;
 
 BEGIN {
     ($SCRIPT)  = fileparse ($0,"\.[^.]*");
-    ($VERSION) = (1.00);
+    ($VERSION) = (3.01);
 }
 
 INIT {

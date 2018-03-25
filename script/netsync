@@ -68,7 +68,7 @@ our %config;
 
 BEGIN {
     ($SCRIPT)  = ($0);
-    ($VERSION) = (3.00);
+    ($VERSION) = (3.01);
 
     $Getopt::Std::STANDARD_HELP_VERSION = 1;
     $| = 1;

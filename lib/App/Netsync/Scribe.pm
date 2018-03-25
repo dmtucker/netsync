@@ -32,7 +32,7 @@ our %files;
 
 BEGIN {
     ($SCRIPT)  = fileparse ($0,"\.[^.]*");
-    ($VERSION) = (1.00);
+    ($VERSION) = (3.01);
 
     require Exporter;
     our @ISA = ('Exporter');
