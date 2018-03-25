@@ -31,3 +31,8 @@
     - Library module APIs are properly documented and defined.
     - EUMM support
     - CPAN release
+
+2017-03-24 : v3.0.0 Banana Slug
+    - Refactor the project and rename to App::Netsync.
+    - Publish to CPAN for the first time.
+    - Unify versions.

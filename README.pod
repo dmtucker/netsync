@@ -4,7 +4,7 @@ App::Netsync - network/database synchronization utility/library
 
 =begin HTML
 
-<a href="https://travis-ci.org/dmtucker/netsync"><img src="https://img.shields.io/travis/dmtucker/netsync.svg" alt="Build Status"></a>
+<a href="https://travis-ci.org/dmtucker/netsync"><img src="https://img.shields.io/travis/dmtucker/netsync.svg" alt="Build Status"></a>&nbsp;<a href="https://metacpan.org/pod/App::Netsync"><img src="https://img.shields.io/cpan/v/App-Netsync.svg" alt="Latest Release"></a>
 
 =end HTML
 
@@ -34,7 +34,7 @@ See F<doc/algorithm.svg> for corresponding visual guidance
 
 =head2 0 Installation
 
- $ cpan App::foo
+ $ cpan App::Netsync
 
 or
 
@@ -47,21 +47,21 @@ B<Modules>
 
 =over 4
 
-=item App::Netsync::Network
-
-methods for manipulating network structures
-
-=item App::Netsync::SNMP
-
-SNMP framework
-
 =item App::Netsync::Configurator
 
 configuration file support
 
+=item App::Netsync::Network
+
+methods for manipulating network structures
+
 =item App::Netsync::Scribe
 
 I/O framework
+
+=item App::Netsync::SNMP
+
+SNMP framework
 
 =back
 
@@ -73,7 +73,7 @@ After installation, netsync may be invoked by name:
 
 If installation is skipped, netsync may be manually invoked as follows:
 
- $ perl -I lib bin/netsync.pl
+ $ perl -I lib script/netsync
 
 B<Options>
 
