@@ -49,6 +49,7 @@ use DBI;
 use File::Basename;
 use Net::DNS;
 use Text::CSV;
+use version;
 
 use App::Netsync::Network;
 use App::Netsync::Scribe 'note';
@@ -59,7 +60,7 @@ our %config;
 
 BEGIN {
     ($SCRIPT)  = fileparse ($0,"\.[^.]*");
-    ($VERSION) = (3.01);
+    ($VERSION) = version->declare('v4.0.0');
 
     require Exporter;
     our @ISA = ('Exporter');

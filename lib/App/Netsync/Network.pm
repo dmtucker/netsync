@@ -86,13 +86,14 @@ use feature 'say';
 use autodie; #XXX Is autodie adequate?
 
 use File::Basename;
+use version;
 
 our ($SCRIPT,$VERSION);
 our %config;
 
 BEGIN {
     ($SCRIPT)  = fileparse ($0,"\.[^.]*");
-    ($VERSION) = (3.01);
+    ($VERSION) = version->declare('v4.0.0');
 
     require Exporter;
     our @ISA = ('Exporter');
