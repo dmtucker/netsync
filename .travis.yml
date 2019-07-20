@@ -1,23 +1,38 @@
-branches:
-  only:
-    - master
-dist: trusty  # This is necessary for net-snmp 5.7.2.
+dist: trusty
+addons:
+  apt:
+    packages:
+      - libsnmp-dev=5.7.2~dfsg-8.1ubuntu3.3
+      - snmpd=5.7.2~dfsg-8.1ubuntu3.3
+      - snmp-mibs-downloader=1.1
 language: perl
-sudo: required
-before_install:
-  - sudo apt-get -y install cpanminus
-  - sudo perl Makefile.PL
-  - sudo make manifest
-  - sudo make dist
+perl:
+  - "5.18-shrplib"
 install:
-  - sudo apt-get -y install libsnmp-perl libsnmp-info-perl
-  - sudo cpanm --installdeps --notest App-Netsync-*.tar.gz
-before_script:
-  - sudo make clean
-  - sudo rm Makefile.old MANIFEST
+  # SNMP.pm 5.7.2 is not on CPAN, but it is packaged for Ubuntu as part of net-snmp.
+  # So, we can either manually fetch and install it, or we can fetch with apt and use sudo.
+  # Here, we do the former. (The latter is available in 9ca9ad7de08c9b821d4fbf493a8a5bdfb839352b).
+  - wget https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/net-snmp/5.7.2~dfsg-8.1ubuntu3.3/net-snmp_5.7.2~dfsg.orig.tar.xz
+  - unxz net-snmp*.xz
+  - tar xf net-snmp*.tar
+  - cd net-snmp*/perl
+  - perl Makefile.PL
+  - make install
+  - cd -
+  - rm -rf net-snmp*
+  # For some reason, `cpanm --installdeps .` does nothing.
+  # So, instead we make a dist and --installdeps on that.
+  - perl Makefile.PL
+  - make manifest
+  - make dist
+  - cpanm --installdeps --notest App-Netsync*.tar.gz
+  - rm App-Netsync*.tar.gz
 script:
-  - sudo perl Makefile.PL
-  - sudo make manifest
-  - sudo RELEASE_TESTING=true make test
-  - sudo make install
+  - perl Makefile.PL
+  - make
+  - make manifest
+  - make test
+  - make dist
+  - AUTHOR_TESTING=true RELEASE_TESTING=true make disttest
+  - make install
   - netsync --help
