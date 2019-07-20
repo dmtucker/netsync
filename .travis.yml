@@ -1,23 +1,28 @@
-branches:
-  only:
-    - master
-dist: trusty  # This is necessary for net-snmp 5.7.2.
-language: perl
+dist: trusty
+addons:
+  apt:
+    packages:
+      - perl=5.18.2-2ubuntu1.7
+      - cpanminus=1.7001-1
+      - libsnmp-info-perl=3.11-1
+      - libsnmp-perl=5.7.2~dfsg-8.1ubuntu3.3
+      - snmp-mibs-downloader=1.1
+language: generic
 sudo: required
-before_install:
-  - sudo apt-get -y install cpanminus
-  - sudo perl Makefile.PL
-  - sudo make manifest
-  - sudo make dist
 install:
-  - sudo apt-get -y install libsnmp-perl libsnmp-info-perl
-  - sudo cpanm --installdeps --notest App-Netsync-*.tar.gz
-before_script:
-  - sudo make clean
-  - sudo rm Makefile.old MANIFEST
+  # For some reason, `cpanm --installdeps .` does nothing.
+  # So, instead we make a dist and --installdeps on that.
+  - perl Makefile.PL
+  - make manifest
+  - make dist
+  - sudo cpanm --installdeps --notest App-Netsync*.tar.gz
+  - rm App-Netsync*.tar.gz
 script:
-  - sudo perl Makefile.PL
-  - sudo make manifest
-  - sudo RELEASE_TESTING=true make test
+  - perl Makefile.PL
+  - make
+  - make manifest
+  - make test
+  - make dist
+  - AUTHOR_TESTING=true RELEASE_TESTING=true make disttest
   - sudo make install
   - netsync --help
