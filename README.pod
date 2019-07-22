@@ -2,12 +2,6 @@
 
 App::Netsync - network/database synchronization utility/library
 
-=begin HTML
-
-<a href="https://travis-ci.org/dmtucker/netsync"><img src="https://img.shields.io/travis/dmtucker/netsync.svg" alt="Build Status"></a>&nbsp;<a href="https://metacpan.org/pod/App::Netsync"><img src="https://img.shields.io/cpan/v/App-Netsync.svg" alt="Latest Release"></a>
-
-=end HTML
-
 =head1 DESCRIPTION
 
 netsync is a network synchronization tool that:
